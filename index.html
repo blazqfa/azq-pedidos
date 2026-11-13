@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pedidos Pendientes AZQ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* Layout: cabecera de marca, barra de carga, pestañas; resumen → detalle. */
+:root{
+  --navy:#1B365D; --accent:#3F6FA8; --bg:#F4F6F9; --surface:#FFFFFF; --ink:#1E2733; --muted:#5F6B7A; --line:#DCE2EA;
+  --bad:#C0392B; --bad-bg:#FBE9E7; --warn:#B7791F; --warn-bg:#FFF4DC; --ok:#2E7D4F; --ok-bg:#E6F4EC; --info-bg:#E7EEF7;
+  --f-display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif; --f-body:"Source Sans 3","Segoe UI",Arial,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --navy:#9DB8DD; --accent:#7FA6D8; --bg:#11161D; --surface:#1A212B; --ink:#E6EBF1; --muted:#98A4B3; --line:#2C3542;
+  --bad:#F08A7E; --bad-bg:#3A1F1C; --warn:#E8B95A; --warn-bg:#3A2E16; --ok:#6CC596; --ok-bg:#16301F; --info-bg:#1E2A3A; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --navy:#9DB8DD; --accent:#7FA6D8; --bg:#11161D; --surface:#1A212B; --ink:#E6EBF1; --muted:#98A4B3; --line:#2C3542;
+  --bad:#F08A7E; --bad-bg:#3A1F1C; --warn:#E8B95A; --warn-bg:#3A2E16; --ok:#6CC596; --ok-bg:#16301F; --info-bg:#1E2A3A; color-scheme:dark;}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--f-body)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 18px 40px}
+header.brand{background:var(--surface);border-bottom:3px solid var(--navy)}
+header.brand .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:14px;padding-bottom:12px;flex-wrap:wrap}
+.logo{font:700 22px/1 var(--f-display);letter-spacing:.06em;color:var(--navy)}
+.logo small{display:block;font:600 10px/1.6 var(--f-body);letter-spacing:.42em;color:var(--muted)}
+.title{font:600 20px/1.2 var(--f-display);color:var(--ink)}
+.stamp{font-size:13px;color:var(--muted);text-align:right}
+.stamp b{color:var(--ink)}
+.load{margin:16px 0;background:var(--surface);border:2px dashed var(--line);border-radius:10px;padding:14px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.load.drag{border-color:var(--accent);background:var(--info-bg)}
+.load p{margin:0;flex:1 1 280px;color:var(--muted)}
+.load p b{color:var(--ink)}
+.btn{font:600 14px var(--f-body);border:1px solid var(--navy);background:var(--navy);color:#fff;border-radius:6px;padding:8px 14px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--navy)}
+.btn:focus-visible,.tab:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.msg{font-size:13px;padding:6px 10px;border-radius:6px;display:none}
+.msg.show{display:block}.msg.ok{background:var(--ok-bg);color:var(--ok)}.msg.err{background:var(--bad-bg);color:var(--bad)}.msg.info{background:var(--info-bg);color:var(--navy)}
+nav.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;overflow-x:auto}
+.tab{font:600 14px var(--f-body);background:none;border:0;border-bottom:3px solid transparent;color:var(--muted);padding:10px 12px;cursor:pointer;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--navy);border-bottom-color:var(--navy)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;border-top:4px solid var(--navy)}
+.kpi .v{font:700 34px/1.05 var(--f-display);font-variant-numeric:tabular-nums}
+.kpi .l{font-size:13px;color:var(--muted)}
+.kpi .d{font-size:12px;margin-top:4px;color:var(--muted)}
+.kpi.bad{border-top-color:var(--bad)}.kpi.bad .v{color:var(--bad)}
+.kpi.warn{border-top-color:var(--warn)}.kpi.warn .v{color:var(--warn)}
+.kpi.ok{border-top-color:var(--ok)}.kpi.ok .v{color:var(--ok)}
+.grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:14px}
+@media (max-width:820px){.grid2{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.card h2{font:600 17px/1.2 var(--f-display);margin:0 0 4px;color:var(--navy);text-wrap:balance}
+.card .sub{font-size:13px;color:var(--muted);margin:0 0 10px}
+svg text{fill:var(--muted);font:12px var(--f-body)}
+.tablebox{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th{background:var(--navy);color:#fff;text-align:left;font-weight:600;padding:8px 10px;white-space:nowrap;position:sticky;top:0}
+:root[data-theme="dark"] th{color:#11161D}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) th{color:#11161D}}
+td{padding:7px 10px;border-top:1px solid var(--line);white-space:nowrap}
+tr:nth-child(even) td{background:color-mix(in srgb,var(--bg) 60%,var(--surface))}
+.pill{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px}
+.p-bad{background:var(--bad-bg);color:var(--bad)}.p-warn{background:var(--warn-bg);color:var(--warn)}.p-ok{background:var(--ok-bg);color:var(--ok)}.p-info{background:var(--info-bg);color:var(--navy)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.toolbar input,.toolbar select{font:14px var(--f-body);padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+.empty{color:var(--muted);padding:18px;text-align:center}
+.bars .row{display:grid;grid-template-columns:120px 1fr 36px;gap:8px;align-items:center;font-size:13px;margin:5px 0}
+.bars .track{background:var(--bg);border-radius:4px;height:14px;overflow:hidden}
+.bars .fill{height:100%;background:var(--accent);border-radius:4px}
+.bars .n{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.steps{counter-reset:s;list-style:none;padding:0;margin:0}
+.steps li{counter-increment:s;position:relative;padding:10px 0 10px 44px;border-top:1px solid var(--line)}
+.steps li::before{content:counter(s);position:absolute;left:0;top:10px;width:30px;height:30px;border-radius:50%;background:var(--navy);color:var(--surface);font:700 16px/30px var(--f-display);text-align:center}
+.steps b{color:var(--navy)}
+code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;word-break:break-all}
+.hidden{display:none}
+.note{font-size:13px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header class="brand"><div class="wrap">
+  <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+    <div class="logo">BORMIOLI LUIGI<small>GLASSMAKER</small></div>
+    <div class="title">Pedidos pendientes · Almacén AZQ</div>
+  </div>
+  <div class="stamp" id="stamp">Cargando…</div>
+</div></header>
+
+<main class="wrap">
+  <section class="load" aria-label="Estado de los datos">
+    <p id="fuente"><b>Conectando con la hoja de datos…</b></p>
+    <a class="btn ghost" id="abrirHoja" href="#" target="_blank" rel="noopener">Abrir hoja para pegar</a>
+    <button class="btn" id="refrescar" type="button">Actualizar</button>
+    <div class="msg" id="msg" role="status"></div>
+  </section>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-v="resumen" aria-selected="true">Resumen</button>
+    <button class="tab" role="tab" data-v="sinentrega" aria-selected="false">Pedidos sin entrega</button>
+    <button class="tab" role="tab" data-v="almacen" aria-selected="false">En almacén</button>
+    <button class="tab" role="tab" data-v="historico" aria-selected="false">Histórico</button>
+    <button class="tab" role="tab" data-v="guia" aria-selected="false">Cómo actualizar</button>
+  </nav>
+
+  <section data-view="resumen">
+    <div class="kpis" id="kpis"></div>
+    <div class="grid2">
+      <div class="card"><h2>Evolución de pendientes</h2><p class="sub">Un punto por guardado (07:30 · 12:30 · 17:30)</p><div id="evo"></div></div>
+      <div class="card"><h2>Movimiento desde el guardado anterior</h2><p class="sub" id="movsub">Pedidos que han entrado y que se han convertido en entrega</p><div id="mov"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h2>Salidas previstas</h2><p class="sub">Pedidos sin entrega por fecha de salida de mercancías</p><div id="byDate" class="bars"></div></div>
+      <div class="card"><h2>Por destinatario</h2><p class="sub">Los 8 con más pedidos pendientes</p><div id="byDest" class="bars"></div></div>
+    </div>
+  </section>
+
+  <section data-view="sinentrega" class="hidden">
+    <div class="card">
+      <h2>Pedidos sin entrega (VL10G · PSE_ALEX)</h2>
+      <p class="sub" id="pseSub"></p>
+      <div class="toolbar">
+        <input id="q" type="search" placeholder="Buscar pedido o destinatario" aria-label="Buscar">
+        <select id="fEstado" aria-label="Filtrar por estado"><option value="">Todos los estados</option><option>Atrasado</option><option>Hoy</option><option>Próximos 7 días</option><option>Más adelante</option><option>Sin fecha</option></select>
+        <button class="btn ghost" id="dlPse" type="button">Descargar Excel</button>
+      </div>
+      <div class="tablebox"><table id="tPse"></table></div>
+    </div>
+  </section>
+
+  <section data-view="almacen" class="hidden">
+    <div class="card">
+      <h2>Entregas en almacén pendientes (monitor · PED_ALEX)</h2>
+      <p class="sub" id="pedSub"></p>
+      <div class="toolbar"><button class="btn ghost" id="dlPed" type="button">Descargar Excel</button></div>
+      <div class="tablebox"><table id="tPed"></table></div>
+    </div>
+  </section>
+
+  <section data-view="historico" class="hidden">
+    <div class="card">
+      <h2>Histórico</h2>
+      <p class="sub">Se guarda solo a las 07:30, 12:30 y 17:30 si se han pegado datos nuevos</p>
+      <div class="toolbar"><button class="btn ghost" id="dlHist" type="button">Descargar histórico</button></div>
+      <div class="tablebox"><table id="tHist"></table></div>
+    </div>
+  </section>
+
+  <section data-view="guia" class="hidden">
+    <div class="card">
+      <h2>Cómo actualizar (antes de las 07:30, 12:30 y 17:30)</h2>
+      <p class="sub">Unos 2 minutos. El dashboard y el histórico se actualizan solos.</p>
+      <ol class="steps">
+        <li><b>Abre VL10G sin ventanas emergentes</b> con este enlace:<br><code>https://s4prd.sap.bormioliluigi.com/sap/bc/gui/sap/its/webgui?~transaction=VL10G&amp;sap-client=100&amp;sap-language=ES</code></li>
+        <li><b>Carga la variante:</b> pulsa <b>Obtener variante</b>, elige <b>PSE_ALEX</b> y pulsa <b>Ejecutar</b>. No pulses nunca "Fondo": crearía las entregas.</li>
+        <li><b>Copia la lista:</b> pulsa el icono de exportar (hoja con flecha), elige <b>En el portapapeles</b> y <b>Continuar</b>. Si no aparece esa opción, elige <b>Texto con tabuladores</b>, abre el archivo descargado y copia todo con Ctrl+A y Ctrl+C.</li>
+        <li><b>Pega en la hoja:</b> pulsa <b>Abrir hoja para pegar</b> (arriba), ve a la pestaña <b>PSE</b>, haz clic en la esquina gris de arriba a la izquierda y pulsa <b>Supr</b> para borrar lo anterior. Haz clic en la celda <b>A1</b> y pega con <b>Ctrl+V</b>.</li>
+        <li><b>Monitor (opcional):</b> en <code>/SCWM/MON</code>, variante <b>PED_ALEX</b>, copia la lista igual y pégala en la pestaña <b>PED</b>.</li>
+        <li><b>Comprueba:</b> vuelve aquí y pulsa <b>Actualizar</b>. Debe aparecer la hora a la que has pegado.</li>
+      </ol>
+      <p class="note">El histórico se guarda solo a las 07:30, 12:30 y 17:30 si se han pegado datos nuevos. Pega siempre un poco antes de esas horas.</p>
+    </div>
+  </section>
+</main>
+
+<script>
+// ===== CONFIGURACIÓN: pega aquí las dos direcciones =====
+const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwRYOKgk-x0dW0U10gr_YwBw6aNaFZPXpxPJ72J2eKkMFrN0M9gqrh47mlad1zI3QJk/exec';   // URL de la aplicación web de Apps Script (termina en /exec)
+const SHEET_URL  = 'https://docs.google.com/spreadsheets/d/1dNwdpRcVPWS5j0W9GPfCjscwW-ngJA0X2ZQmwkru3SI/edit';   // URL de la hoja de Google donde se pega
+// =========================================================
+(function(){
+const $=s=>document.querySelector(s);
+const qs=new URLSearchParams(location.search);
+const API=qs.get('api')||WEBAPP_URL, HOJA=qs.get('hoja')||SHEET_URL;
+const state={data:null};
+const fmtD=s=>s?s.slice(8,10)+'/'+s.slice(5,7):'—';
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function msg(t,k){const m=$('#msg');m.textContent=t;m.className='msg show '+(k||'info');}
+function clearMsg(){$('#msg').className='msg';}
+
+if(HOJA) $('#abrirHoja').href=HOJA; else $('#abrirHoja').style.display='none';
+
+function show(v){document.querySelectorAll('[data-view]').forEach(s=>s.classList.toggle('hidden',s.dataset.view!==v));
+  document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.v===v));}
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{show(t.dataset.v);try{history.replaceState(null,'',location.search+'#'+t.dataset.v)}catch(e){}}));
+const h0=(location.hash||'').slice(1); if(['resumen','sinentrega','almacen','historico','guia'].includes(h0)) show(h0);
+
+// --- carga de datos (JSONP: funciona desde cualquier web sin problemas de CORS) ---
+let n=0;
+function cargar(){
+  if(!API){$('#fuente').innerHTML='<b>Falta configurar</b> la dirección de la hoja (WEBAPP_URL).';render();return;}
+  $('#refrescar').disabled=true;
+  const cb='azq_cb'+(++n); const s=document.createElement('script');
+  const t=setTimeout(()=>{fin();msg('La hoja no responde. Revisa que la aplicación web esté implementada con acceso "Cualquier usuario".','err');},20000);
+  function fin(){clearTimeout(t);delete window[cb];s.remove();$('#refrescar').disabled=false;}
+  window[cb]=d=>{fin();state.data=d;clearMsg();render();};
+  s.onerror=()=>{fin();msg('No se ha podido conectar con la hoja de datos.','err');};
+  s.src=API+(API.includes('?')?'&':'?')+'callback='+cb+'&t='+Date.now();
+  document.body.appendChild(s);
+}
+$('#refrescar').addEventListener('click',cargar);
+setInterval(()=>{if(!document.hidden)cargar();},5*60*1000);
+
+const P=()=>state.data&&state.data.pse&&state.data.pse.cabecera?state.data.pse:null;
+const D=()=>state.data&&state.data.ped&&state.data.ped.rows&&state.data.ped.rows.length?state.data.ped:null;
+const H=()=>state.data?state.data.historico||[]:[];
+const TODAY=()=>state.data?state.data.hoy:'';
+
+function render(){
+  const d=state.data;
+  if(d){$('#stamp').innerHTML='Actualizado <b>'+esc(d.generado)+'</b>';
+    $('#fuente').innerHTML='Datos de SAP pegados: <b>'+(d.pse.pegado||'—')+'</b> (PSE)'+(d.ped&&d.ped.pegado?' · <b>'+d.ped.pegado+'</b> (PED)':'');}
+  renderKPIs();renderEvo();renderMov();renderBars();renderPSE();renderPED();renderHist();
+}
+function kpi(v,l,d,k){return '<div class="kpi '+(k||'')+'"><div class="v">'+v+'</div><div class="l">'+l+'</div>'+(d?'<div class="d">'+d+'</div>':'')+'</div>';}
+function renderKPIs(){
+  const p=P(),dd=D(),h=H();
+  if(!p&&!dd){$('#kpis').innerHTML='<div class="card empty" style="grid-column:1/-1">Todavía no hay datos. Pega la exportación de PSE_ALEX en la pestaña PSE de la hoja.</div>';return;}
+  const r=p?p.resumen:null; const prev=h.length?h[h.length-1]:null;
+  const delta=prev&&r?(r.total-prev.total>0?'+':'')+(r.total-prev.total)+' vs '+fmtD(prev.fecha)+' '+prev.franja:'';
+  $('#kpis').innerHTML=(r?kpi(r.total,'Pedidos sin entrega',delta)+
+    kpi(r.atrasados,'Atrasados','fecha de salida pasada',r.atrasados?'bad':'ok')+
+    kpi(r.hoy,'Salida hoy','',r.hoy?'warn':'')+kpi(r.prox7,'Próximos 7 días','')+
+    kpi(r.traslados,'Traslados',r.clientes+' pedidos de cliente'):'')+
+    (dd?kpi(dd.rows.length,'Entregas en almacén','pendientes de salida'):'');
+}
+function renderEvo(){
+  const L=H().slice(-30);
+  if(L.length<2){$('#evo').innerHTML='<div class="empty">Aparecerá en cuanto haya dos guardados en el histórico.</div>';return;}
+  const W=620,Hh=200,pl=34,pr=12,pt=12,pb=34;const max=Math.max(...L.map(c=>c.total),1);const nice=Math.ceil(max/5)*5||5;
+  const x=i=>pl+i*(W-pl-pr)/(L.length-1),y=v=>pt+(Hh-pt-pb)*(1-v/nice);
+  const line=k=>L.map((c,i)=>(i?'L':'M')+x(i).toFixed(1)+','+y(c[k]||0).toFixed(1)).join('');
+  let g='';for(let t=0;t<=nice;t+=nice/5){g+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(t)+'" y2="'+y(t)+'" stroke="var(--line)"/><text x="'+(pl-6)+'" y="'+(y(t)+4)+'" text-anchor="end">'+Math.round(t)+'</text>';}
+  const step=Math.ceil(L.length/8);let xl='';L.forEach((c,i)=>{if(i%step===0||i===L.length-1)xl+='<text x="'+x(i)+'" y="'+(Hh-14)+'" text-anchor="middle">'+fmtD(c.fecha)+'</text><text x="'+x(i)+'" y="'+(Hh-2)+'" text-anchor="middle">'+c.franja+'</text>';});
+  const area=line('total')+'L'+x(L.length-1)+','+y(0)+'L'+x(0)+','+y(0)+'Z';const li=L.length-1;
+  $('#evo').innerHTML='<svg viewBox="0 0 '+W+' '+Hh+'" width="100%" role="img" aria-label="Evolución de pedidos pendientes y atrasados">'+g+
+    '<path d="'+area+'" fill="var(--accent)" opacity=".12"/><path d="'+line('total')+'" fill="none" stroke="var(--accent)" stroke-width="2.5"/>'+
+    '<path d="'+line('atrasados')+'" fill="none" stroke="var(--bad)" stroke-width="2" stroke-dasharray="5 4"/>'+
+    '<circle cx="'+x(li)+'" cy="'+y(L[li].total)+'" r="4.5" fill="var(--accent)"/><circle cx="'+x(li)+'" cy="'+y(L[li].atrasados||0)+'" r="4" fill="var(--bad)"/>'+xl+'</svg>'+
+    '<div class="note"><span style="color:var(--accent)">━</span> Pendientes &nbsp; <span style="color:var(--bad)">╍</span> Atrasados</div>';
+}
+function renderMov(){
+  const h=H(),p=P();
+  // compara la lista actual con el último guardado (o los dos últimos guardados si coinciden)
+  let a=h.length?h[h.length-1]:null, bList=p?[...new Set(p.rows.map(r=>r.ped))]:null, bLab='ahora';
+  if(a&&bList&&a.pedidos.join(' ')===bList.join(' ')&&h.length>1){bLab=fmtD(a.fecha)+' '+a.franja;a=h[h.length-2];}
+  if(!a||!bList){$('#mov').innerHTML='<div class="empty">Necesita un guardado anterior para comparar.</div>';return;}
+  const A=new Set(a.pedidos),B=new Set(bList);
+  const nuevos=bList.filter(x=>!A.has(x)),hechos=a.pedidos.filter(x=>!B.has(x));
+  $('#movsub').textContent='De '+fmtD(a.fecha)+' '+a.franja+' a '+bLab;
+  const list=(arr,cls)=>arr.length?arr.slice(0,8).map(r=>'<span class="pill '+cls+'" style="margin:2px">'+esc(r)+'</span>').join('')+(arr.length>8?' <span class="note">+'+(arr.length-8)+' más</span>':''):'<span class="note">Ninguno</span>';
+  $('#mov').innerHTML='<div class="kpis" style="grid-template-columns:1fr 1fr">'+kpi(nuevos.length,'Pedidos nuevos','entraron de Customer Service','warn')+kpi(hechos.length,'Convertidos en entrega','salieron de la lista','ok')+'</div>'+
+    '<p class="note" style="margin:6px 0 2px">Nuevos</p>'+list(nuevos,'p-warn')+'<p class="note" style="margin:10px 0 2px">Convertidos en entrega</p>'+list(hechos,'p-ok');
+}
+function bars(el,pairs){const m=Math.max(...pairs.map(p=>p[1]),1);
+  el.innerHTML=pairs.length?pairs.map(p=>'<div class="row"><span>'+esc(p[0])+'</span><div class="track"><div class="fill" style="width:'+(p[1]/m*100)+'%;'+(p[2]?'background:'+p[2]:'')+'"></div></div><span class="n">'+p[1]+'</span></div>').join(''):'<div class="empty">Sin datos</div>';}
+function renderBars(){
+  const p=P(); if(!p){bars($('#byDate'),[]);bars($('#byDest'),[]);return;}
+  const T=TODAY(),cnt={};p.rows.forEach(r=>{const k=r.f||'';cnt[k]=(cnt[k]||0)+1;});
+  const keys=Object.keys(cnt).sort();const atras=keys.filter(k=>k&&k<T).reduce((s,k)=>s+cnt[k],0);
+  const pairs=[];if(atras)pairs.push(['Atrasados',atras,'var(--bad)']);
+  keys.filter(k=>k>=T).slice(0,10).forEach(k=>pairs.push([k===T?'Hoy '+fmtD(k):fmtD(k),cnt[k],k===T?'var(--warn)':'']));
+  if(cnt['']) pairs.push(['Sin fecha',cnt[''],'var(--muted)']);
+  bars($('#byDate'),pairs);
+  const d={};p.rows.forEach(r=>{d[r.dest]=(d[r.dest]||0)+1;});
+  bars($('#byDest'),Object.entries(d).sort((a,b)=>b[1]-a[1]).slice(0,8));
+}
+const pillE=e=>'<span class="pill '+({'Atrasado':'p-bad','Hoy':'p-warn','Próximos 7 días':'p-info','Sin fecha':'p-info'}[e]||'p-ok')+'">'+e+'</span>';
+function pseRows(){const p=P();if(!p)return[];const q=$('#q').value.trim().toLowerCase(),fe=$('#fEstado').value;
+  return p.rows.filter(r=>(!fe||r.estado===fe)&&(!q||(r.ped+' '+r.dest).toLowerCase().includes(q))).sort((a,b)=>(a.f||'9')<(b.f||'9')?-1:1);}
+function renderPSE(){
+  const p=P();
+  if(!p){$('#tPse').innerHTML='<tr><td class="empty">Sin datos de PSE_ALEX</td></tr>';$('#pseSub').textContent='';return;}
+  $('#pseSub').textContent='Pegado '+(p.pegado||'—')+' · '+p.resumen.total+' pedidos · '+(p.resumen.kg||0).toLocaleString('es-ES')+' kg';
+  const R=pseRows();
+  $('#tPse').innerHTML='<thead><tr><th>Estado</th><th>Salida mcías.</th><th>Pedido</th><th>Tipo</th><th>Destinatario</th><th>Ruta</th><th>Prior.</th><th style="text-align:right">Peso (kg)</th></tr></thead><tbody>'+
+    (R.length?R.map(r=>'<tr><td>'+pillE(r.estado)+'</td><td>'+(r.f?fmtD(r.f)+'/'+r.f.slice(0,4):'—')+'</td><td><b>'+esc(r.ped)+'</b></td><td>'+r.tipo+'</td><td>'+esc(r.dest)+'</td><td>'+esc(r.ruta)+'</td><td>'+esc(r.pr)+'</td><td style="text-align:right">'+(r.kg==null?'':r.kg.toLocaleString('es-ES'))+'</td></tr>').join(''):'<tr><td colspan="8" class="empty">Ningún pedido con ese filtro</td></tr>')+'</tbody>';
+}
+$('#q').addEventListener('input',renderPSE);$('#fEstado').addEventListener('change',renderPSE);
+function renderPED(){
+  const d=D();
+  if(!d){$('#tPed').innerHTML='<tr><td class="empty">La pestaña PED de la hoja está vacía.</td></tr>';$('#pedSub').textContent='';return;}
+  $('#pedSub').textContent='Pegado '+(d.pegado||'—')+' · '+d.rows.length+' líneas';
+  $('#tPed').innerHTML='<thead><tr>'+d.head.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+d.rows.map(r=>'<tr>'+r.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('')+'</tbody>';
+}
+function renderHist(){
+  const L=[...H()].reverse();
+  $('#tHist').innerHTML='<thead><tr><th>Fecha</th><th>Franja</th><th>Datos pegados</th><th style="text-align:right">Pendientes</th><th style="text-align:right">Atrasados</th><th style="text-align:right">Salida hoy</th><th style="text-align:right">Próx. 7 días</th><th style="text-align:right">Traslados</th></tr></thead><tbody>'+
+    (L.length?L.map(c=>'<tr><td>'+fmtD(c.fecha)+'/'+c.fecha.slice(0,4)+'</td><td>'+esc(c.franja)+'</td><td>'+esc(c.pegado)+'</td><td style="text-align:right">'+c.total+'</td><td style="text-align:right">'+c.atrasados+'</td><td style="text-align:right">'+c.hoy+'</td><td style="text-align:right">'+c.prox7+'</td><td style="text-align:right">'+c.traslados+'</td></tr>').join(''):'<tr><td colspan="8" class="empty">Todavía no hay guardados</td></tr>')+'</tbody>';
+}
+function saveXlsx(name,sheets){
+  if(typeof XLSX==='undefined'){msg('No se ha podido cargar el generador de Excel. Revisa la conexión.','err');return;}
+  const wb=XLSX.utils.book_new();sheets.forEach(([n,aoa])=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(aoa),n));
+  XLSX.writeFile(wb,name);
+}
+const stampName=()=>(state.data?state.data.hoy:'')+'_'+new Date().toTimeString().slice(0,5).replace(':','');
+$('#dlPse').addEventListener('click',()=>{const p=P();if(!p)return msg('No hay datos de PSE_ALEX.','err');
+  saveXlsx('PSE_ALEX_'+stampName()+'.xlsx',[['Pedidos sin entrega',[['Estado','Salida mcías.','Pedido','Tipo','Destinatario','Ruta','Prioridad','Peso (kg)']].concat(pseRows().map(r=>[r.estado,r.f,r.ped,r.tipo,r.dest,r.ruta,r.pr,r.kg]))]]);});
+$('#dlPed').addEventListener('click',()=>{const d=D();if(!d)return msg('No hay datos de PED_ALEX.','err');
+  saveXlsx('PED_ALEX_'+stampName()+'.xlsx',[['En almacén',[d.head].concat(d.rows)]]);});
+$('#dlHist').addEventListener('click',()=>{const h=H();if(!h.length)return msg('Todavía no hay histórico.','err');
+  saveXlsx('Historico_pedidos_AZQ.xlsx',[['Histórico',[['Fecha','Franja','Datos pegados','Pendientes','Atrasados','Salida hoy','Próx. 7 días','Sin fecha','Pedidos cliente','Traslados','Kg','Pedidos']].concat(h.map(c=>[c.fecha,c.franja,c.pegado,c.total,c.atrasados,c.hoy,c.prox7,c.sinFecha,c.clientes,c.traslados,c.kg,c.pedidos.join(' ')]))]]);});
+
+render();cargar();
+})();
+</script>
+</body>
+</html>
