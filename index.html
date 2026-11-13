@@ -94,10 +94,11 @@ code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;
 </div></header>
 
 <main class="wrap">
-  <section class="load" aria-label="Estado de los datos">
-    <p id="fuente"><b>Conectando con la hoja de datos…</b></p>
-    <a class="btn ghost" id="abrirHoja" href="#" target="_blank" rel="noopener">Abrir hoja para pegar</a>
-    <button class="btn" id="refrescar" type="button">Actualizar</button>
+  <section class="load" id="drop" aria-label="Subir exportación de SAP">
+    <p><b>Arrastra aquí el .txt de SAP</b> (PSE_ALEX de VL10G o PED_ALEX del monitor) o pulsa «Subir archivo». Se guarda solo para todo el equipo.<br><span id="fuente">Conectando con la hoja de datos…</span></p>
+    <input type="file" id="file" accept=".txt,.tsv,.csv,.xls,.xlsx" multiple class="hidden">
+    <button class="btn" id="pick" type="button">Subir archivo</button>
+    <button class="btn ghost" id="refrescar" type="button">Actualizar</button>
     <div class="msg" id="msg" role="status"></div>
   </section>
 
@@ -112,7 +113,7 @@ code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;
   <section data-view="resumen">
     <div class="kpis" id="kpis"></div>
     <div class="grid2">
-      <div class="card"><h2>Evolución de pendientes</h2><p class="sub">Un punto por guardado (07:30 · 12:30 · 17:30)</p><div id="evo"></div></div>
+      <div class="card"><h2>Evolución de pendientes</h2><p class="sub">Un punto por cada vez que se suben datos de PSE_ALEX</p><div id="evo"></div></div>
       <div class="card"><h2>Movimiento desde el guardado anterior</h2><p class="sub" id="movsub">Pedidos que han entrado y que se han convertido en entrega</p><div id="mov"></div></div>
     </div>
     <div class="grid2">
@@ -146,7 +147,7 @@ code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;
   <section data-view="historico" class="hidden">
     <div class="card">
       <h2>Histórico</h2>
-      <p class="sub">Se guarda solo a las 07:30, 12:30 y 17:30 si se han pegado datos nuevos</p>
+      <p class="sub">Se guarda solo cada vez que se suben datos nuevos de PSE_ALEX</p>
       <div class="toolbar"><button class="btn ghost" id="dlHist" type="button">Descargar histórico</button></div>
       <div class="tablebox"><table id="tHist"></table></div>
     </div>
@@ -154,17 +155,16 @@ code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;
 
   <section data-view="guia" class="hidden">
     <div class="card">
-      <h2>Cómo actualizar (antes de las 07:30, 12:30 y 17:30)</h2>
-      <p class="sub">Unos 2 minutos. El dashboard y el histórico se actualizan solos.</p>
+      <h2>Cómo actualizar</h2>
+      <p class="sub">Unos 2 minutos, cuando haga falta (orientativo: a primera hora, a mediodía y por la tarde).</p>
       <ol class="steps">
         <li><b>Abre VL10G sin ventanas emergentes</b> con este enlace:<br><code>https://s4prd.sap.bormioliluigi.com/sap/bc/gui/sap/its/webgui?~transaction=VL10G&amp;sap-client=100&amp;sap-language=ES</code></li>
         <li><b>Carga la variante:</b> pulsa <b>Obtener variante</b>, elige <b>PSE_ALEX</b> y pulsa <b>Ejecutar</b>. No pulses nunca "Fondo": crearía las entregas.</li>
-        <li><b>Copia la lista:</b> pulsa el icono de exportar (hoja con flecha), elige <b>En el portapapeles</b> y <b>Continuar</b>. Si no aparece esa opción, elige <b>Texto con tabuladores</b>, abre el archivo descargado y copia todo con Ctrl+A y Ctrl+C.</li>
-        <li><b>Pega en la hoja:</b> pulsa <b>Abrir hoja para pegar</b> (arriba), ve a la pestaña <b>PSE</b>, haz clic en la esquina gris de arriba a la izquierda y pulsa <b>Supr</b> para borrar lo anterior. Haz clic en la celda <b>A1</b> y pega con <b>Ctrl+V</b>.</li>
-        <li><b>Monitor (opcional):</b> en <code>/SCWM/MON</code>, variante <b>PED_ALEX</b>, copia la lista igual y pégala en la pestaña <b>PED</b>.</li>
-        <li><b>Comprueba:</b> vuelve aquí y pulsa <b>Actualizar</b>. Debe aparecer la hora a la que has pegado.</li>
+        <li><b>Descarga la lista:</b> pulsa el icono de exportar (hoja con flecha), elige <b>Texto con tabuladores</b> y <b>Continuar</b>. Se guarda un .txt en Descargas.</li>
+        <li><b>Súbela aquí:</b> arrastra el .txt a la zona de arriba de esta página (o pulsa <b>Subir archivo</b> y elígelo). En unos segundos aparece el mensaje en verde y se actualiza todo.</li>
+        <li><b>Monitor (opcional):</b> en <code>/SCWM/MON</code>, variante <b>PED_ALEX</b>, exporta igual y sube el .txt. La web reconoce sola de qué lista es cada archivo.</li>
       </ol>
-      <p class="note">El histórico se guarda solo a las 07:30, 12:30 y 17:30 si se han pegado datos nuevos. Pega siempre un poco antes de esas horas.</p>
+      <p class="note">Cada subida de PSE_ALEX queda guardada en el histórico con su hora. Si alguien prefiere, también puede pegar la lista en la pestaña PSE de la <a id="abrirHoja" href="#" target="_blank" rel="noopener">hoja de datos</a>.</p>
     </div>
   </section>
 </main>
@@ -184,7 +184,36 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 function msg(t,k){const m=$('#msg');m.textContent=t;m.className='msg show '+(k||'info');}
 function clearMsg(){$('#msg').className='msg';}
 
-if(HOJA) $('#abrirHoja').href=HOJA; else $('#abrirHoja').style.display='none';
+if(HOJA) $('#abrirHoja').href=HOJA;
+
+// --- subir el .txt de SAP a la hoja ---
+function decode(buf){let t=new TextDecoder('utf-8').decode(buf); if(t.includes(String.fromCharCode(0xFFFD))) t=new TextDecoder('windows-1252').decode(buf); return t;}
+async function aTexto(f){
+  const buf=await f.arrayBuffer();
+  if(/\.xlsx?$/i.test(f.name)&&typeof XLSX!=='undefined'){const u=new Uint8Array(buf);
+    if(u[0]===0x50||u[0]===0xD0){const wb=XLSX.read(u,{type:'array'});return XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]],{FS:'\t'});}}
+  return decode(buf);
+}
+async function subir(files){
+  if(!API) return msg('Falta configurar la dirección de la hoja.','err');
+  for(const f of files){
+    try{
+      const txt=await aTexto(f);
+      const tipo=/Causante/i.test(txt)?'PSE_ALEX':/(^|\t)\s*Documento\s*(\t|$)|Orden.*entrega/im.test(txt)?'PED_ALEX':null;
+      if(!tipo){msg('No reconozco «'+f.name+'». Exporta PSE_ALEX (VL10G) o PED_ALEX (monitor) en «Texto con tabuladores».','err');continue;}
+      msg('Subiendo '+tipo+' («'+f.name+'»)…','info');
+      await fetch(API,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:txt});
+      msg(tipo+' subido. Actualizando…','ok');
+    }catch(e){msg('No se ha podido subir «'+f.name+'»: '+(e&&e.message||e),'err');}
+  }
+  setTimeout(()=>{cargar();setTimeout(()=>msg('Datos actualizados.','ok'),2500);},2500);
+}
+const drop=$('#drop');
+['dragenter','dragover'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add('drag')}));
+['dragleave','drop'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove('drag')}));
+drop.addEventListener('drop',ev=>subir([...ev.dataTransfer.files]));
+$('#pick').addEventListener('click',()=>$('#file').click());
+$('#file').addEventListener('change',e=>{subir([...e.target.files]);e.target.value='';});
 
 function show(v){document.querySelectorAll('[data-view]').forEach(s=>s.classList.toggle('hidden',s.dataset.view!==v));
   document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.v===v));}
@@ -215,13 +244,13 @@ const TODAY=()=>state.data?state.data.hoy:'';
 function render(){
   const d=state.data;
   if(d){$('#stamp').innerHTML='Actualizado <b>'+esc(d.generado)+'</b>';
-    $('#fuente').innerHTML='Datos de SAP pegados: <b>'+(d.pse.pegado||'—')+'</b> (PSE)'+(d.ped&&d.ped.pegado?' · <b>'+d.ped.pegado+'</b> (PED)':'');}
+    $('#fuente').innerHTML='Últimos datos de SAP: <b>'+(d.pse.pegado||'—')+'</b> (PSE)'+(d.ped&&d.ped.pegado?' · <b>'+d.ped.pegado+'</b> (PED)':'');}
   renderKPIs();renderEvo();renderMov();renderBars();renderPSE();renderPED();renderHist();
 }
 function kpi(v,l,d,k){return '<div class="kpi '+(k||'')+'"><div class="v">'+v+'</div><div class="l">'+l+'</div>'+(d?'<div class="d">'+d+'</div>':'')+'</div>';}
 function renderKPIs(){
   const p=P(),dd=D(),h=H();
-  if(!p&&!dd){$('#kpis').innerHTML='<div class="card empty" style="grid-column:1/-1">Todavía no hay datos. Pega la exportación de PSE_ALEX en la pestaña PSE de la hoja.</div>';return;}
+  if(!p&&!dd){$('#kpis').innerHTML='<div class="card empty" style="grid-column:1/-1">Todavía no hay datos. Arrastra arriba el .txt de PSE_ALEX.</div>';return;}
   const r=p?p.resumen:null; const prev=h.length?h[h.length-1]:null;
   const delta=prev&&r?(r.total-prev.total>0?'+':'')+(r.total-prev.total)+' vs '+fmtD(prev.fecha)+' '+prev.franja:'';
   $('#kpis').innerHTML=(r?kpi(r.total,'Pedidos sin entrega',delta)+
@@ -277,7 +306,7 @@ function pseRows(){const p=P();if(!p)return[];const q=$('#q').value.trim().toLow
 function renderPSE(){
   const p=P();
   if(!p){$('#tPse').innerHTML='<tr><td class="empty">Sin datos de PSE_ALEX</td></tr>';$('#pseSub').textContent='';return;}
-  $('#pseSub').textContent='Pegado '+(p.pegado||'—')+' · '+p.resumen.total+' pedidos · '+(p.resumen.kg||0).toLocaleString('es-ES')+' kg';
+  $('#pseSub').textContent='Subido '+(p.pegado||'—')+' · '+p.resumen.total+' pedidos · '+(p.resumen.kg||0).toLocaleString('es-ES')+' kg';
   const R=pseRows();
   $('#tPse').innerHTML='<thead><tr><th>Estado</th><th>Salida mcías.</th><th>Pedido</th><th>Tipo</th><th>Destinatario</th><th>Ruta</th><th>Prior.</th><th style="text-align:right">Peso (kg)</th></tr></thead><tbody>'+
     (R.length?R.map(r=>'<tr><td>'+pillE(r.estado)+'</td><td>'+(r.f?fmtD(r.f)+'/'+r.f.slice(0,4):'—')+'</td><td><b>'+esc(r.ped)+'</b></td><td>'+r.tipo+'</td><td>'+esc(r.dest)+'</td><td>'+esc(r.ruta)+'</td><td>'+esc(r.pr)+'</td><td style="text-align:right">'+(r.kg==null?'':r.kg.toLocaleString('es-ES'))+'</td></tr>').join(''):'<tr><td colspan="8" class="empty">Ningún pedido con ese filtro</td></tr>')+'</tbody>';
@@ -286,12 +315,12 @@ $('#q').addEventListener('input',renderPSE);$('#fEstado').addEventListener('chan
 function renderPED(){
   const d=D();
   if(!d){$('#tPed').innerHTML='<tr><td class="empty">La pestaña PED de la hoja está vacía.</td></tr>';$('#pedSub').textContent='';return;}
-  $('#pedSub').textContent='Pegado '+(d.pegado||'—')+' · '+d.rows.length+' líneas';
+  $('#pedSub').textContent='Subido '+(d.pegado||'—')+' · '+d.rows.length+' líneas';
   $('#tPed').innerHTML='<thead><tr>'+d.head.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+d.rows.map(r=>'<tr>'+r.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('')+'</tbody>';
 }
 function renderHist(){
   const L=[...H()].reverse();
-  $('#tHist').innerHTML='<thead><tr><th>Fecha</th><th>Franja</th><th>Datos pegados</th><th style="text-align:right">Pendientes</th><th style="text-align:right">Atrasados</th><th style="text-align:right">Salida hoy</th><th style="text-align:right">Próx. 7 días</th><th style="text-align:right">Traslados</th></tr></thead><tbody>'+
+  $('#tHist').innerHTML='<thead><tr><th>Fecha</th><th>Hora</th><th>Datos subidos</th><th style="text-align:right">Pendientes</th><th style="text-align:right">Atrasados</th><th style="text-align:right">Salida hoy</th><th style="text-align:right">Próx. 7 días</th><th style="text-align:right">Traslados</th></tr></thead><tbody>'+
     (L.length?L.map(c=>'<tr><td>'+fmtD(c.fecha)+'/'+c.fecha.slice(0,4)+'</td><td>'+esc(c.franja)+'</td><td>'+esc(c.pegado)+'</td><td style="text-align:right">'+c.total+'</td><td style="text-align:right">'+c.atrasados+'</td><td style="text-align:right">'+c.hoy+'</td><td style="text-align:right">'+c.prox7+'</td><td style="text-align:right">'+c.traslados+'</td></tr>').join(''):'<tr><td colspan="8" class="empty">Todavía no hay guardados</td></tr>')+'</tbody>';
 }
 function saveXlsx(name,sheets){
@@ -305,7 +334,7 @@ $('#dlPse').addEventListener('click',()=>{const p=P();if(!p)return msg('No hay d
 $('#dlPed').addEventListener('click',()=>{const d=D();if(!d)return msg('No hay datos de PED_ALEX.','err');
   saveXlsx('PED_ALEX_'+stampName()+'.xlsx',[['En almacén',[d.head].concat(d.rows)]]);});
 $('#dlHist').addEventListener('click',()=>{const h=H();if(!h.length)return msg('Todavía no hay histórico.','err');
-  saveXlsx('Historico_pedidos_AZQ.xlsx',[['Histórico',[['Fecha','Franja','Datos pegados','Pendientes','Atrasados','Salida hoy','Próx. 7 días','Sin fecha','Pedidos cliente','Traslados','Kg','Pedidos']].concat(h.map(c=>[c.fecha,c.franja,c.pegado,c.total,c.atrasados,c.hoy,c.prox7,c.sinFecha,c.clientes,c.traslados,c.kg,c.pedidos.join(' ')]))]]);});
+  saveXlsx('Historico_pedidos_AZQ.xlsx',[['Histórico',[['Fecha','Hora','Datos subidos','Pendientes','Atrasados','Salida hoy','Próx. 7 días','Sin fecha','Pedidos cliente','Traslados','Kg','Pedidos']].concat(h.map(c=>[c.fecha,c.franja,c.pegado,c.total,c.atrasados,c.hoy,c.prox7,c.sinFecha,c.clientes,c.traslados,c.kg,c.pedidos.join(' ')]))]]);});
 
 render();cargar();
 })();
