@@ -222,16 +222,29 @@ const h0=(location.hash||'').slice(1); if(['resumen','sinentrega','almacen','his
 
 // --- carga de datos (JSONP: funciona desde cualquier web sin problemas de CORS) ---
 let n=0;
-function cargar(){
+// 1º intenta fetch normal; si el navegador lo bloquea, prueba JSONP
+async function cargar(){
   if(!API){$('#fuente').innerHTML='<b>Falta configurar</b> la dirección de la hoja (WEBAPP_URL).';render();return;}
   $('#refrescar').disabled=true;
+  try{
+    const r=await fetch(API+(API.includes('?')?'&':'?')+'t='+Date.now(),{cache:'no-store',redirect:'follow'});
+    const d=await r.json();
+    if(d&&d.ok){state.data=d;clearMsg();render();$('#refrescar').disabled=false;return;}
+  }catch(e){}
+  cargarJsonp();
+}
+function cargarJsonp(){
   const cb='azq_cb'+(++n); const s=document.createElement('script');
-  const t=setTimeout(()=>{fin();msg('La hoja no responde. Revisa que la aplicación web esté implementada con acceso "Cualquier usuario".','err');},20000);
+  const t=setTimeout(()=>{fin();errorCarga();},20000);
   function fin(){clearTimeout(t);delete window[cb];s.remove();$('#refrescar').disabled=false;}
   window[cb]=d=>{fin();state.data=d;clearMsg();render();};
-  s.onerror=()=>{fin();msg('No se ha podido conectar con la hoja de datos.','err');};
+  s.onerror=()=>{fin();errorCarga();};
   s.src=API+(API.includes('?')?'&':'?')+'callback='+cb+'&t='+Date.now();
   document.body.appendChild(s);
+}
+function errorCarga(){
+  $('#fuente').innerHTML='Sin conexión con la hoja de datos.';
+  msg('No se ha podido conectar con la hoja de datos. Suele ser la red de la empresa o un bloqueador del navegador que impide abrir script.google.com. Prueba a abrir la web desde otro navegador o pide a IT que permita script.google.com y script.googleusercontent.com.','err');
 }
 $('#refrescar').addEventListener('click',cargar);
 setInterval(()=>{if(!document.hidden)cargar();},5*60*1000);
