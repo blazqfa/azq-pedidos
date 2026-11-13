@@ -251,7 +251,7 @@ function kpi(v,l,d,k){return '<div class="kpi '+(k||'')+'"><div class="v">'+v+'<
 function renderKPIs(){
   const p=P(),dd=D(),h=H();
   if(!p&&!dd){$('#kpis').innerHTML='<div class="card empty" style="grid-column:1/-1">Todavía no hay datos. Arrastra arriba el .txt de PSE_ALEX.</div>';return;}
-  const r=p?p.resumen:null; const prev=h.length?h[h.length-1]:null;
+  const r=p?p.resumen:null; let prev=h.length?h[h.length-1]:null; if(prev&&p&&prev.pegado===p.pegado) prev=h.length>1?h[h.length-2]:null;
   const delta=prev&&r?(r.total-prev.total>0?'+':'')+(r.total-prev.total)+' vs '+fmtD(prev.fecha)+' '+prev.franja:'';
   $('#kpis').innerHTML=(r?kpi(r.total,'Pedidos sin entrega',delta)+
     kpi(r.atrasados,'Atrasados','fecha de salida pasada',r.atrasados?'bad':'ok')+
