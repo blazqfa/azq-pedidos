@@ -81,6 +81,8 @@ tr:nth-child(even) td{background:color-mix(in srgb,var(--bg) 60%,var(--surface))
 code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;word-break:break-all}
 .hidden{display:none}
 .note{font-size:13px;color:var(--muted)}
+.block{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;font:700 20px/1.2 var(--f-display);color:var(--navy);margin:8px 0 10px;padding-top:6px;border-top:2px solid var(--line)}
+.block small{font:400 13px var(--f-body);color:var(--muted)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -104,14 +106,15 @@ code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;
 
   <nav class="tabs" role="tablist">
     <button class="tab" role="tab" data-v="resumen" aria-selected="true">Resumen</button>
-    <button class="tab" role="tab" data-v="sinentrega" aria-selected="false">Pedidos sin entrega</button>
-    <button class="tab" role="tab" data-v="almacen" aria-selected="false">En almacén</button>
+    <button class="tab" role="tab" data-v="sinentrega" aria-selected="false">Sin entrega (administración)</button>
+    <button class="tab" role="tab" data-v="almacen" aria-selected="false">Por preparar (almacén)</button>
     <button class="tab" role="tab" data-v="historico" aria-selected="false">Histórico</button>
     <button class="tab" role="tab" data-v="inventario" aria-selected="false">Inventario</button>
     <button class="tab" role="tab" data-v="guia" aria-selected="false">Cómo actualizar</button>
   </nav>
 
   <section data-view="resumen">
+    <h2 class="block" style="border-top:0">Administración <small>Pedidos de Customer Service pendientes de crear la entrega (VL10G · PSE_ALEX)</small></h2>
     <div class="kpis" id="kpis"></div>
     <div class="grid2">
       <div class="card"><h2>Evolución de pendientes</h2><p class="sub">Un punto por cada vez que se suben datos de PSE_ALEX</p><div id="evo"></div></div>
@@ -120,6 +123,12 @@ code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;
     <div class="grid2">
       <div class="card"><h2>Salidas previstas</h2><p class="sub">Pedidos sin entrega por fecha de salida de mercancías</p><div id="byDate" class="bars"></div></div>
       <div class="card"><h2>Por destinatario</h2><p class="sub">Los 8 con más pedidos pendientes</p><div id="byDest" class="bars"></div></div>
+    </div>
+    <h2 class="block">Almacén <small>Órdenes de entrega pendientes de preparar físicamente (/SCWM/MON · PED_ALEX)</small></h2>
+    <div class="kpis" id="almKpis"></div>
+    <div class="grid2">
+      <div class="card"><h2>Evolución de órdenes por preparar</h2><p class="sub">Un punto por cada subida de PED_ALEX</p><div id="almEvo"></div></div>
+      <div class="card"><h2>Por estado y tipo</h2><p class="sub" id="almEstSub">Órdenes activas (sin las de más de 30 días de retraso)</p><div id="almEst" class="bars"></div></div>
     </div>
   </section>
 
@@ -138,9 +147,16 @@ code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;
 
   <section data-view="almacen" class="hidden">
     <div class="card">
-      <h2>Entregas en almacén pendientes (monitor · PED_ALEX)</h2>
+      <h2>Órdenes de entrega pendientes de preparar (monitor · PED_ALEX)</h2>
       <p class="sub" id="pedSub"></p>
-      <div class="toolbar"><button class="btn ghost" id="dlPed" type="button">Descargar Excel</button></div>
+      <div class="toolbar">
+        <input id="pq" type="search" placeholder="Buscar orden o destinatario" aria-label="Buscar orden">
+        <select id="pEst" aria-label="Filtrar por estado"><option value="">Todos los estados</option><option>Sin picking</option><option>En picking</option><option>Preparada</option></select>
+        <select id="pPlazo" aria-label="Filtrar por plazo"><option value="">Todos los plazos</option><option>Atrasada</option><option>Hoy</option><option>Próximos 7 días</option><option>Más adelante</option><option>Antigua (+30 días)</option><option>Sin fecha</option></select>
+        <select id="pTipo" aria-label="Filtrar por tipo"><option value="">Todos los tipos</option><option>Cliente</option><option>Terzista</option><option>Traslado</option><option>Consumo orden</option></select>
+        <label class="note"><input type="checkbox" id="pAnt"> Incluir antiguas</label>
+        <button class="btn ghost" id="dlPed" type="button">Descargar Excel</button>
+      </div>
       <div class="tablebox"><table id="tPed"></table></div>
     </div>
   </section>
@@ -188,7 +204,7 @@ code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;
         <li><b>Descarga la lista:</b> pulsa el icono de exportar (hoja con flecha), elige <b>Texto con tabuladores</b> y <b>Continuar</b>. Se guarda un .txt en Descargas.</li>
         <li><b>Súbela aquí:</b> arrastra el .txt a la zona de arriba de esta página (o pulsa <b>Subir archivo</b> y elígelo). En unos segundos aparece el mensaje en verde y se actualiza todo.</li>
         <li><b>Inventario:</b> en <code>/SCWM/SAPLPI_STATUS</code> (progreso de inventario) carga la variante <b>INV_ALEX</b>, exporta a Excel y arrastra el archivo aquí. Se cruza solo con el maestro de ubicaciones.</li>
-        <li><b>Monitor (opcional):</b> en <code>/SCWM/MON</code>, variante <b>PED_ALEX</b>, exporta igual y sube el .txt. La web reconoce sola de qué lista es cada archivo.</li>
+        <li><b>Almacén:</b> en <code>/SCWM/MON</code> (almacén GB50, monitor ZGBL) abre <b>Salida → Documentos → Orden de entrega de salida</b>, carga la variante <b>PED_ALEX</b>, exporta a Excel y arrástralo aquí. La web reconoce sola de qué lista es cada archivo.</li>
       </ol>
       <p class="note">Cada subida de PSE_ALEX queda guardada en el histórico con su hora. Si alguien prefiere, también puede pegar la lista en la pestaña PSE de la <a id="abrirHoja" href="#" target="_blank" rel="noopener">hoja de datos</a>.</p>
     </div>
@@ -228,7 +244,7 @@ async function cargarMaestro(){
   return null;
 }
 const COLS_INV=['Ubicación','Tipo almacén','Número de doc.inv.','FeRecuentInvent','Status de inventario','Status de integridad'];
-function fmtFecha(v){if(v instanceof Date&&!isNaN(v)){return String(v.getDate()).padStart(2,'0')+'/'+String(v.getMonth()+1).padStart(2,'0')+'/'+v.getFullYear();}return String(v==null?'':v).trim();}
+function fmtFecha(v){if(Object.prototype.toString.call(v)==='[object Date]'&&!isNaN(v)){const z=new Date(v.getTime()+60000);v=z;return String(v.getDate()).padStart(2,'0')+'/'+String(v.getMonth()+1).padStart(2,'0')+'/'+v.getFullYear();}return String(v==null?'':v).trim();}
 function filasInv(rows){
   const hi=rows.findIndex(r=>r.some(c=>/Status de integridad/i.test(String(c))));if(hi<0)return null;
   const H=rows[hi].map(c=>String(c).trim());const idx=COLS_INV.map(k=>H.findIndex(h=>h.toLowerCase()===k.toLowerCase()));
@@ -265,6 +281,43 @@ async function subirInv(f,rows){
   show('inventario');
 }
 function filasDeTexto(t){return t.replace(/\r/g,'').split('\n').map(l=>{const c=l.split('\t');const s=l.trim();return (c.length===1&&s.charAt(0)==='|')?s.replace(/^\|/,'').replace(/\|$/,'').split('|'):c;});}
+// ===== ALMACÉN (PED_ALEX) =====
+const COLS_PED=['Documento','Clase de documento','Descripción destinatario de mercancías','Fecha de entrega (planificada)','Status de picking','Cargar','Status salida de mercancías','Cantidad pos.','Cantidad de unidades de manipulación','Descripción de transportista','Unidad de transporte','Creados el'];
+const TIPO_PED={OUTB:'Cliente',ZOSC:'Terzista',OUTT:'Traslado',OPC:'Consumo orden'};
+function isoDe(s){s=String(s||'').trim();let m=s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})/);if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[0]:'';}
+function hoyLocal(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function filasPed(rows){
+  const hi=rows.findIndex(r=>r.some(c=>/^Documento$/i.test(String(c).trim()))&&r.some(c=>/Status de picking/i.test(String(c))));if(hi<0)return null;
+  const H=rows[hi].map(c=>String(c).trim());const idx=COLS_PED.map(k=>H.findIndex(h=>h.toLowerCase()===k.toLowerCase()));
+  const out=[COLS_PED];
+  for(const r of rows.slice(hi+1)){const d=String(r[idx[0]]==null?'':r[idx[0]]).trim();if(!/\d/.test(d))continue;out.push(idx.map(i=>i<0?'':fmtFecha(r[i])));}
+  return out;
+}
+function analizarPed(filas,hoy){
+  if(!filas||filas.length<2)return null;
+  let hi=filas.findIndex(r=>r.some(c=>/^Documento$/i.test(String(c).trim()))&&r.some(c=>/Status de picking/i.test(String(c))));if(hi<0)return null;
+  const H=filas[hi].map(c=>String(c).trim()),I=k=>H.findIndex(h=>h.toLowerCase()===k.toLowerCase());
+  const c={doc:I('Documento'),cl:I('Clase de documento'),de:I('Descripción destinatario de mercancías'),f:I('Fecha de entrega (planificada)'),pk:I('Status de picking'),ca:I('Cargar'),gi:I('Status salida de mercancías'),pos:I('Cantidad pos.'),um:I('Cantidad de unidades de manipulación'),tr:I('Descripción de transportista'),ut:I('Unidad de transporte')};
+  const g=(r,k)=>c[k]<0?'':String(r[c[k]]==null?'':r[c[k]]).trim();
+  const out=[];
+  for(const r of filas.slice(hi+1)){const doc=g(r,'doc');if(!/\d/.test(doc))continue;const gi=g(r,'gi');if(/^Finalizad[oa]$/i.test(gi))continue;
+    const pk=g(r,'pk');const estado=/^Finalizad[oa]$/i.test(pk)?'Preparada':/parcial/i.test(pk)?'En picking':'Sin picking';
+    const f=isoDe(g(r,'f'));let plazo='Sin fecha';
+    if(f){const dd=Math.round((Date.parse(f)-Date.parse(hoy))/864e5);plazo=dd< -30?'Antigua (+30 días)':dd<0?'Atrasada':dd===0?'Hoy':dd<=7?'Próximos 7 días':'Más adelante';}
+    const cl=g(r,'cl');out.push({doc,tipo:TIPO_PED[cl]||cl||'—',dest:g(r,'de'),f,plazo,estado,pick:pk,carga:g(r,'ca'),gi,pos:+g(r,'pos')||0,um:+g(r,'um')||0,transp:g(r,'tr'),ut:g(r,'ut')});}
+  const act=out.filter(x=>x.plazo!=='Antigua (+30 días)');const cnt=(a,f)=>a.filter(f).length;
+  return {rows:out,activas:act.length,sinPicking:cnt(act,x=>x.estado==='Sin picking'),enPicking:cnt(act,x=>x.estado==='En picking'),preparadas:cnt(act,x=>x.estado==='Preparada'),
+    atrasadas:cnt(act,x=>x.plazo==='Atrasada'),hoy:cnt(act,x=>x.plazo==='Hoy'),prox7:cnt(act,x=>x.plazo==='Próximos 7 días'),antiguas:out.length-act.length,
+    tipos:act.reduce((a,x)=>{a[x.tipo]=(a[x.tipo]||0)+1;return a},{})};
+}
+async function subirPed(f,rows){
+  const filas=filasPed(rows);if(!filas){msg('No encuentro las columnas «Documento» y «Status de picking» en «'+f.name+'».','err');return;}
+  const a=analizarPed(filas,hoyLocal());
+  const resumen={activas:a.activas,sinPicking:a.sinPicking,enPicking:a.enPicking,preparadas:a.preparadas,atrasadas:a.atrasadas,hoy:a.hoy,antiguas:a.antiguas,ordenes:a.rows.filter(x=>x.plazo!=='Antigua (+30 días)').map(x=>x.doc)};
+  msg('Subiendo órdenes de almacén ('+(filas.length-1)+')…','info');
+  await fetch(API,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({tipo:'PED',filas,resumen})});
+  msg('PED_ALEX subido: '+a.activas+' órdenes por preparar ('+a.antiguas+' antiguas aparte).','ok');
+}
 async function aTexto(f){
   const buf=await f.arrayBuffer();
   if(/\.xlsx?$/i.test(f.name)&&typeof XLSX!=='undefined'){const u=new Uint8Array(buf);
@@ -279,9 +332,11 @@ async function subir(files){
         const wb=XLSX.read(new Uint8Array(await f.arrayBuffer()),{type:'array',cellDates:true});
         const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:''});
         if(rows.some(r=>r.some(c=>/Status de integridad/i.test(String(c))))){await subirInv(f,rows);continue;}
+        if(rows.some(r=>r.some(c=>/Status de picking/i.test(String(c))))){await subirPed(f,rows);continue;}
       }
       const txt=await aTexto(f);
       if(/Status de integridad/i.test(txt)){await subirInv(f,filasDeTexto(txt));continue;}
+      if(/Status de picking/i.test(txt)){await subirPed(f,filasDeTexto(txt));continue;}
       const tipo=/Causante/i.test(txt)?'PSE_ALEX':/(^|\t)\s*Documento\s*(\t|$)|Orden.*entrega/im.test(txt)?'PED_ALEX':null;
       if(!tipo){msg('No reconozco «'+f.name+'». Exporta PSE_ALEX (VL10G) o PED_ALEX (monitor) en «Texto con tabuladores».','err');continue;}
       msg('Subiendo '+tipo+' («'+f.name+'»)…','info');
@@ -333,27 +388,28 @@ $('#refrescar').addEventListener('click',cargar);
 setInterval(()=>{if(!document.hidden)cargar();},5*60*1000);
 
 const P=()=>state.data&&state.data.pse&&state.data.pse.cabecera?state.data.pse:null;
-const D=()=>state.data&&state.data.ped&&state.data.ped.rows&&state.data.ped.rows.length?state.data.ped:null;
+let almCache=null;
+const D=()=>{const p=state.data&&state.data.ped;if(!p||!p.filas||p.filas.length<2)return null;return analizarPed(p.filas,TODAY()||hoyLocal());};
 const H=()=>state.data?state.data.historico||[]:[];
 const TODAY=()=>state.data?state.data.hoy:'';
 
 function render(){
   const d=state.data;
   if(d){$('#stamp').innerHTML='Actualizado <b>'+esc(d.generado)+'</b>';
-    $('#fuente').innerHTML='Últimos datos de SAP: <b>'+(d.pse.pegado||'—')+'</b> (PSE)'+(d.ped&&d.ped.pegado?' · <b>'+d.ped.pegado+'</b> (PED)':'');}
-  renderKPIs();renderEvo();renderMov();renderBars();renderPSE();renderPED();renderHist();renderInv();
+    $('#fuente').innerHTML='Últimos datos de SAP: <b>'+(d.pse.pegado||'—')+'</b> (PSE)'+(d.ped&&d.ped.pegado?' · <b>'+d.ped.pegado+'</b> (PED)':'')+(d.inv&&d.inv.subido?' · <b>'+d.inv.subido+'</b> (INV)':'');}
+  almCache=D();
+  renderKPIs();renderEvo();renderMov();renderBars();renderPSE();renderAlm();renderPED();renderHist();renderInv();
 }
 function kpi(v,l,d,k){return '<div class="kpi '+(k||'')+'"><div class="v">'+v+'</div><div class="l">'+l+'</div>'+(d?'<div class="d">'+d+'</div>':'')+'</div>';}
 function renderKPIs(){
-  const p=P(),dd=D(),h=H();
-  if(!p&&!dd){$('#kpis').innerHTML='<div class="card empty" style="grid-column:1/-1">Todavía no hay datos. Arrastra arriba el .txt de PSE_ALEX.</div>';return;}
+  const p=P(),h=H();
+  if(!p){$('#kpis').innerHTML='<div class="card empty" style="grid-column:1/-1">Todavía no hay datos. Arrastra arriba el .txt de PSE_ALEX.</div>';return;}
   const r=p?p.resumen:null; let prev=h.length?h[h.length-1]:null; if(prev&&p&&prev.pegado===p.pegado) prev=h.length>1?h[h.length-2]:null;
   const delta=prev&&r?(r.total-prev.total>0?'+':'')+(r.total-prev.total)+' vs '+fmtD(prev.fecha)+' '+prev.franja:'';
   $('#kpis').innerHTML=(r?kpi(r.total,'Pedidos sin entrega',delta)+
     kpi(r.atrasados,'Atrasados','fecha de salida pasada',r.atrasados?'bad':'ok')+
     kpi(r.hoy,'Salida hoy','',r.hoy?'warn':'')+kpi(r.prox7,'Próximos 7 días','')+
-    kpi(r.traslados,'Traslados',r.clientes+' pedidos de cliente'):'')+
-    (dd?kpi(dd.rows.length,'Entregas en almacén','pendientes de salida'):'');
+    kpi(r.traslados,'Traslados',r.clientes+' pedidos de cliente'):'');
 }
 function renderEvo(){
   const L=H().slice(-30);
@@ -408,12 +464,39 @@ function renderPSE(){
     (R.length?R.map(r=>'<tr><td>'+pillE(r.estado)+'</td><td>'+(r.f?fmtD(r.f)+'/'+r.f.slice(0,4):'—')+'</td><td><b>'+esc(r.ped)+'</b></td><td>'+r.tipo+'</td><td>'+esc(r.dest)+'</td><td>'+esc(r.ruta)+'</td><td>'+esc(r.pr)+'</td><td style="text-align:right">'+(r.kg==null?'':r.kg.toLocaleString('es-ES'))+'</td></tr>').join(''):'<tr><td colspan="8" class="empty">Ningún pedido con ese filtro</td></tr>')+'</tbody>';
 }
 $('#q').addEventListener('input',renderPSE);$('#fEstado').addEventListener('change',renderPSE);
-function renderPED(){
-  const d=D();
-  if(!d){$('#tPed').innerHTML='<tr><td class="empty">La pestaña PED de la hoja está vacía.</td></tr>';$('#pedSub').textContent='';return;}
-  $('#pedSub').textContent='Subido '+(d.pegado||'—')+' · '+d.rows.length+' líneas';
-  $('#tPed').innerHTML='<thead><tr>'+d.head.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+d.rows.map(r=>'<tr>'+r.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('')+'</tbody>';
+function svgLinea(L,k,etq){if(L.length<2)return '<div class="empty">Aparecerá en cuanto haya dos subidas.</div>';
+  const W=620,Hh=200,pl=34,pr=12,pt=12,pb=34;const max=Math.max(...L.map(c=>c[k]||0),1);const nice=Math.ceil(max/5)*5||5;
+  const x=i=>pl+i*(W-pl-pr)/(L.length-1),y=v=>pt+(Hh-pt-pb)*(1-v/nice);
+  let g='';for(let t=0;t<=nice;t+=nice/5)g+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(t)+'" y2="'+y(t)+'" stroke="var(--line)"/><text x="'+(pl-6)+'" y="'+(y(t)+4)+'" text-anchor="end">'+Math.round(t)+'</text>';
+  const ln=k2=>L.map((c,i)=>(i?'L':'M')+x(i).toFixed(1)+','+y(c[k2]||0).toFixed(1)).join('');const step=Math.ceil(L.length/8);let xl='';
+  L.forEach((c,i)=>{if(i%step===0||i===L.length-1)xl+='<text x="'+x(i)+'" y="'+(Hh-14)+'" text-anchor="middle">'+fmtD(c.fecha)+'</text><text x="'+x(i)+'" y="'+(Hh-2)+'" text-anchor="middle">'+c.hora+'</text>';});
+  return '<svg viewBox="0 0 '+W+' '+Hh+'" width="100%" role="img" aria-label="'+etq+'">'+g+'<path d="'+ln(k)+'" fill="none" stroke="var(--accent)" stroke-width="2.5"/><path d="'+ln('atrasadas')+'" fill="none" stroke="var(--bad)" stroke-width="2" stroke-dasharray="5 4"/>'+xl+'</svg><div class="note"><span style="color:var(--accent)">━</span> Por preparar &nbsp; <span style="color:var(--bad)">╍</span> Atrasadas</div>';}
+function renderAlm(){
+  const a=almCache;
+  if(!a){$('#almKpis').innerHTML='<div class="card empty" style="grid-column:1/-1">Todavía no hay datos de almacén. Arrastra arriba el Excel de PED_ALEX.</div>';$('#almEvo').innerHTML='';$('#almEst').innerHTML='';return;}
+  const hp=(state.data.ped.historico||[]);let prev=hp.length?hp[hp.length-1]:null;
+  const dl=prev&&prev.activas!==a.activas?((a.activas-prev.activas>0?'+':'')+(a.activas-prev.activas)+' vs '+fmtD(prev.fecha)+' '+prev.hora):'';
+  $('#almKpis').innerHTML=kpi(a.activas,'Órdenes por preparar',dl)+kpi(a.sinPicking,'Sin picking','',a.sinPicking?'warn':'ok')+kpi(a.enPicking,'En picking','')+
+    kpi(a.preparadas,'Preparadas','pendientes de carga / salida')+kpi(a.atrasadas,'Atrasadas','fecha de entrega pasada',a.atrasadas?'bad':'ok')+
+    kpi(a.hoy,'Salen hoy',a.prox7+' en los próximos 7 días',a.hoy?'warn':'')+kpi(a.antiguas,'Antiguas a revisar','más de 30 días de retraso',a.antiguas?'bad':'ok');
+  $('#almEvo').innerHTML=svgLinea(hp.slice(-30),'activas','Evolución de órdenes por preparar');
+  const est=[['Sin picking',a.sinPicking,'var(--warn)'],['En picking',a.enPicking,'var(--accent)'],['Preparada',a.preparadas,'var(--ok)']];
+  const tip=Object.entries(a.tipos).sort((x,y)=>y[1]-x[1]).map(([k,v])=>[k,v]);
+  bars($('#almEst'),est.concat([['—',0]]).concat(tip).filter(x=>x[0]!=='—'));
 }
+function pedRows(){const a=almCache;if(!a)return[];const q=$('#pq').value.trim().toLowerCase(),e=$('#pEst').value,pl=$('#pPlazo').value,t=$('#pTipo').value,ant=$('#pAnt').checked||pl==='Antigua (+30 días)';
+  return a.rows.filter(r=>(ant||r.plazo!=='Antigua (+30 días)')&&(!e||r.estado===e)&&(!pl||r.plazo===pl)&&(!t||r.tipo===t)&&(!q||(r.doc+' '+r.dest).toLowerCase().includes(q))).sort((x,y)=>(x.f||'9')<(y.f||'9')?-1:1);}
+const pillP=e=>'<span class="pill '+({'Sin picking':'p-warn','En picking':'p-info','Preparada':'p-ok'}[e]||'p-info')+'">'+e+'</span>';
+const pillPl=e=>'<span class="pill '+({'Atrasada':'p-bad','Antigua (+30 días)':'p-bad','Hoy':'p-warn','Próximos 7 días':'p-info'}[e]||'p-ok')+'">'+e+'</span>';
+function renderPED(){
+  const a=almCache;
+  if(!a){$('#tPed').innerHTML='<tr><td class="empty">Todavía no se ha subido PED_ALEX.</td></tr>';$('#pedSub').textContent='';return;}
+  $('#pedSub').textContent='Subido '+(state.data.ped.pegado||'—')+' · '+a.activas+' activas · '+a.antiguas+' antiguas (más de 30 días)';
+  const R=pedRows();
+  $('#tPed').innerHTML='<thead><tr><th>Estado</th><th>Plazo</th><th>Entrega plan.</th><th>Orden</th><th>Tipo</th><th>Destinatario</th><th style="text-align:right">Pos.</th><th style="text-align:right">UM</th><th>Transportista</th></tr></thead><tbody>'+
+    (R.length?R.map(r=>'<tr><td>'+pillP(r.estado)+'</td><td>'+pillPl(r.plazo)+'</td><td>'+(r.f?fmtD(r.f)+'/'+r.f.slice(0,4):'—')+'</td><td><b>'+esc(r.doc)+'</b></td><td>'+esc(r.tipo)+'</td><td>'+esc(r.dest)+'</td><td style="text-align:right">'+r.pos+'</td><td style="text-align:right">'+r.um+'</td><td>'+esc(r.transp||'—')+'</td></tr>').join(''):'<tr><td colspan="9" class="empty">Ninguna orden con ese filtro</td></tr>')+'</tbody>';
+}
+['#pq','#pEst','#pPlazo','#pTipo','#pAnt'].forEach(s=>$(s).addEventListener(s==='#pq'?'input':'change',renderPED));
 function renderHist(){
   const L=[...H()].reverse();
   $('#tHist').innerHTML='<thead><tr><th>Fecha</th><th>Hora</th><th>Datos subidos</th><th style="text-align:right">Pendientes</th><th style="text-align:right">Atrasados</th><th style="text-align:right">Salida hoy</th><th style="text-align:right">Próx. 7 días</th><th style="text-align:right">Traslados</th></tr></thead><tbody>'+
@@ -471,8 +554,8 @@ function saveXlsx(name,sheets){
 const stampName=()=>(state.data?state.data.hoy:'')+'_'+new Date().toTimeString().slice(0,5).replace(':','');
 $('#dlPse').addEventListener('click',()=>{const p=P();if(!p)return msg('No hay datos de PSE_ALEX.','err');
   saveXlsx('PSE_ALEX_'+stampName()+'.xlsx',[['Pedidos sin entrega',[['Estado','Salida mcías.','Pedido','Tipo','Destinatario','Ruta','Prioridad','Peso (kg)']].concat(pseRows().map(r=>[r.estado,r.f,r.ped,r.tipo,r.dest,r.ruta,r.pr,r.kg]))]]);});
-$('#dlPed').addEventListener('click',()=>{const d=D();if(!d)return msg('No hay datos de PED_ALEX.','err');
-  saveXlsx('PED_ALEX_'+stampName()+'.xlsx',[['En almacén',[d.head].concat(d.rows)]]);});
+$('#dlPed').addEventListener('click',()=>{if(!almCache)return msg('No hay datos de PED_ALEX.','err');
+  saveXlsx('Almacen_por_preparar_'+stampName()+'.xlsx',[['Por preparar',[['Estado','Plazo','Entrega planificada','Orden','Tipo','Destinatario','Posiciones','UM','Transportista','Status picking','Carga','Salida mercancías']].concat(pedRows().map(r=>[r.estado,r.plazo,r.f,r.doc,r.tipo,r.dest,r.pos,r.um,r.transp,r.pick,r.carga,r.gi]))]]);});
 $('#dlHist').addEventListener('click',()=>{const h=H();if(!h.length)return msg('Todavía no hay histórico.','err');
   saveXlsx('Historico_pedidos_AZQ.xlsx',[['Histórico',[['Fecha','Hora','Datos subidos','Pendientes','Atrasados','Salida hoy','Próx. 7 días','Sin fecha','Pedidos cliente','Traslados','Kg','Pedidos']].concat(h.map(c=>[c.fecha,c.franja,c.pegado,c.total,c.atrasados,c.hoy,c.prox7,c.sinFecha,c.clientes,c.traslados,c.kg,c.pedidos.join(' ')]))]]);});
 
