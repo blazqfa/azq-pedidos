@@ -95,7 +95,7 @@ code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;
 
 <main class="wrap">
   <section class="load" id="drop" aria-label="Subir exportación de SAP">
-    <p><b>Arrastra aquí el .txt de SAP</b> (PSE_ALEX de VL10G o PED_ALEX del monitor) o pulsa «Subir archivo». Se guarda solo para todo el equipo.<br><span id="fuente">Conectando con la hoja de datos…</span></p>
+    <p><b>Arrastra aquí el .txt de SAP</b> (PSE_ALEX de VL10G, PED_ALEX del monitor o el Excel de INV_ALEX) o pulsa «Subir archivo». Se guarda solo para todo el equipo.<br><span id="fuente">Conectando con la hoja de datos…</span></p>
     <input type="file" id="file" accept=".txt,.tsv,.csv,.xls,.xlsx" multiple class="hidden">
     <button class="btn" id="pick" type="button">Subir archivo</button>
     <button class="btn ghost" id="refrescar" type="button">Actualizar</button>
@@ -107,6 +107,7 @@ code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;
     <button class="tab" role="tab" data-v="sinentrega" aria-selected="false">Pedidos sin entrega</button>
     <button class="tab" role="tab" data-v="almacen" aria-selected="false">En almacén</button>
     <button class="tab" role="tab" data-v="historico" aria-selected="false">Histórico</button>
+    <button class="tab" role="tab" data-v="inventario" aria-selected="false">Inventario</button>
     <button class="tab" role="tab" data-v="guia" aria-selected="false">Cómo actualizar</button>
   </nav>
 
@@ -153,6 +154,30 @@ code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;
     </div>
   </section>
 
+  <section data-view="inventario" class="hidden">
+    <div class="kpis" id="invKpis"></div>
+    <div class="grid2">
+      <div class="card"><h2>Avance por zona</h2><p class="sub" id="invZonasSub">Ubicaciones del maestro con inventario contabilizado</p><div id="invZonas"></div></div>
+      <div class="card"><h2>Evolución del % real</h2><p class="sub">Un punto por cada subida de INV_ALEX</p><div id="invEvo"></div></div>
+    </div>
+    <div class="card">
+      <h2>Ubicaciones pendientes de inventariar</h2>
+      <p class="sub">Ubicaciones reales del maestro que todavía no tienen inventario contabilizado en SAP</p>
+      <div class="toolbar">
+        <input id="invQ" type="search" placeholder="Buscar ubicación" aria-label="Buscar ubicación">
+        <select id="invZona" aria-label="Filtrar por zona"><option value="">Todas las zonas</option></select>
+        <select id="invEst" aria-label="Filtrar por estado"><option value="">Todos los estados</option><option>Sin documento</option><option>Documento abierto</option><option>Contada sin contabilizar</option><option>No existe en SAP</option></select>
+        <button class="btn ghost" id="dlInv" type="button">Descargar Excel</button>
+      </div>
+      <div class="tablebox"><table id="tPend"></table></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h2>Sobran en SAP</h2><p class="sub">Ubicaciones que tiene SAP y no existen en el maestro (no cuentan para el %)</p><div class="tablebox" style="max-height:360px;overflow:auto"><table id="tSobra"></table></div></div>
+      <div class="card"><h2>Faltan en SAP</h2><p class="sub">Ubicaciones del maestro que SAP no tiene con ese nombre</p><div class="tablebox" style="max-height:360px;overflow:auto"><table id="tFalta"></table></div></div>
+    </div>
+    <p class="note" id="invFuente"></p>
+  </section>
+
   <section data-view="guia" class="hidden">
     <div class="card">
       <h2>Cómo actualizar</h2>
@@ -162,6 +187,7 @@ code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;
         <li><b>Carga la variante:</b> pulsa <b>Obtener variante</b>, elige <b>PSE_ALEX</b> y pulsa <b>Ejecutar</b>. No pulses nunca "Fondo": crearía las entregas.</li>
         <li><b>Descarga la lista:</b> pulsa el icono de exportar (hoja con flecha), elige <b>Texto con tabuladores</b> y <b>Continuar</b>. Se guarda un .txt en Descargas.</li>
         <li><b>Súbela aquí:</b> arrastra el .txt a la zona de arriba de esta página (o pulsa <b>Subir archivo</b> y elígelo). En unos segundos aparece el mensaje en verde y se actualiza todo.</li>
+        <li><b>Inventario:</b> en <code>/SCWM/SAPLPI_STATUS</code> (progreso de inventario) carga la variante <b>INV_ALEX</b>, exporta a Excel y arrastra el archivo aquí. Se cruza solo con el maestro de ubicaciones.</li>
         <li><b>Monitor (opcional):</b> en <code>/SCWM/MON</code>, variante <b>PED_ALEX</b>, exporta igual y sube el .txt. La web reconoce sola de qué lista es cada archivo.</li>
       </ol>
       <p class="note">Cada subida de PSE_ALEX queda guardada en el histórico con su hora. Si alguien prefiere, también puede pegar la lista en la pestaña PSE de la <a id="abrirHoja" href="#" target="_blank" rel="noopener">hoja de datos</a>.</p>
@@ -188,6 +214,57 @@ if(HOJA) $('#abrirHoja').href=HOJA;
 
 // --- subir el .txt de SAP a la hoja ---
 function decode(buf){let t=new TextDecoder('utf-8').decode(buf); if(t.includes(String.fromCharCode(0xFFFD))) t=new TextDecoder('windows-1252').decode(buf); return t;}
+// ===== INVENTARIO =====
+const MAESTRO_API='https://script.google.com/macros/s/AKfycbx7K5iGcjcSmzhuKUXjzvVe5ObgRZDG0f5RjnF-JhQyKTylYCDqmwKOsVp0aOVv-D1Qjw/exec?action=maestro';
+const MAESTRO_WEB='/azq-dashboard/';
+state.maestro=null; state.maestroFuente='';
+async function cargarMaestro(){
+  if(state.maestro) return state.maestro;
+  try{const r=await fetch(MAESTRO_API,{cache:'no-store'});const d=await r.json();
+    if(d&&d.ok&&Array.isArray(d.maestro)&&d.maestro.length){state.maestro=d.maestro.map(m=>({ubi:String(m.ubi).trim().toUpperCase(),zona:m.zona||''}));state.maestroFuente='maestro guardado en el dashboard de stock';return state.maestro;}}catch(e){}
+  try{const h=await (await fetch(MAESTRO_WEB+'?t='+Date.now(),{cache:'no-store'})).text();
+    const i=h.indexOf('const M_INIT = ');if(i>=0){const a=i+15,b=h.indexOf('];',a)+1;const m=JSON.parse(h.slice(a,b));
+      state.maestro=m.map(x=>({ubi:String(x.ubi).trim().toUpperCase(),zona:x.zona||''}));state.maestroFuente='maestro de ubicaciones del dashboard de stock';return state.maestro;}}catch(e){}
+  return null;
+}
+const COLS_INV=['Ubicación','Tipo almacén','Número de doc.inv.','FeRecuentInvent','Status de inventario','Status de integridad'];
+function fmtFecha(v){if(v instanceof Date&&!isNaN(v)){return String(v.getDate()).padStart(2,'0')+'/'+String(v.getMonth()+1).padStart(2,'0')+'/'+v.getFullYear();}return String(v==null?'':v).trim();}
+function filasInv(rows){
+  const hi=rows.findIndex(r=>r.some(c=>/Status de integridad/i.test(String(c))));if(hi<0)return null;
+  const H=rows[hi].map(c=>String(c).trim());const idx=COLS_INV.map(k=>H.findIndex(h=>h.toLowerCase()===k.toLowerCase()));
+  const out=[COLS_INV];
+  for(const r of rows.slice(hi+1)){const u=String(r[idx[0]]==null?'':r[idx[0]]).trim();if(!u)continue;out.push(idx.map(i=>i<0?'':fmtFecha(r[i])));}
+  return out;
+}
+function cruzarInv(filas,maestro){
+  if(!filas||filas.length<2||!maestro)return null;
+  const H=filas[0],I=k=>H.indexOf(k);
+  const iU=I('Ubicación'),iT=I('Tipo almacén'),iS=I('Status de inventario'),iX=I('Status de integridad'),iF=I('FeRecuentInvent'),iD=I('Número de doc.inv.');
+  const sap={};filas.slice(1).forEach(r=>{const u=String(r[iU]).trim().toUpperCase();if(u)sap[u]=r;});
+  const est=r=>!r?'No existe en SAP':String(r[iX]).trim()==='X'?'Inventariada':String(r[iS]).trim()==='ACTI'?'Documento abierto':String(r[iS]).trim()==='COUN'?'Contada sin contabilizar':'Sin documento';
+  const mset=new Set(maestro.map(m=>m.ubi));const zonas={};const pend=[];const falta=[];let hechas=0,sinDoc=0,enCurso=0;
+  maestro.forEach(m=>{const r=sap[m.ubi];const e=est(r);const z=m.zona||'Sin zona';zonas[z]=zonas[z]||{total:0,hechas:0};zonas[z].total++;
+    if(e==='Inventariada'){hechas++;zonas[z].hechas++;}
+    else{if(e==='Sin documento')sinDoc++;if(e==='Documento abierto'||e==='Contada sin contabilizar')enCurso++;
+      pend.push({ubi:m.ubi,zona:z,estado:e,fecha:r?r[iF]:'',doc:r&&r[iD]!=='0'?r[iD]:'',tipo:r?r[iT]:''});}
+    if(!r){const alias=Object.keys(sap).find(k=>k!==m.ubi&&k.includes(m.ubi));falta.push({ubi:m.ubi,zona:z,alias:alias||''});}});
+  const sobra=Object.keys(sap).filter(u=>!mset.has(u)).sort().map(u=>({ubi:u,tipo:sap[u][iT],estado:est(sap[u])}));
+  const n=maestro.length;
+  return {maestro:n,hechas,pct:n?Math.round(hechas/n*1000)/10:0,pendientes:n-hechas,sinDoc,enCurso,soloSap:sobra.length,soloMaestro:falta.length,zonas,pend,sobra,falta};
+}
+async function subirInv(f,rows){
+  const filas=filasInv(rows);if(!filas){msg('No encuentro la columna «Status de integridad» en «'+f.name+'».','err');return;}
+  msg('Cargando maestro de ubicaciones…','info');
+  const m=await cargarMaestro();if(!m){msg('No he podido leer el maestro de ubicaciones del dashboard de stock.','err');return;}
+  const c=cruzarInv(filas,m);
+  const resumen={maestro:c.maestro,hechas:c.hechas,pct:c.pct,pendientes:c.pendientes,sinDoc:c.sinDoc,enCurso:c.enCurso,soloSap:c.soloSap,soloMaestro:c.soloMaestro,
+    zonas:Object.fromEntries(Object.entries(c.zonas).map(([k,v])=>[k,Math.round(v.hechas/v.total*1000)/10]))};
+  msg('Subiendo inventario ('+(filas.length-1)+' ubicaciones de SAP)…','info');
+  await fetch(API,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({tipo:'INV',filas,resumen})});
+  msg('Inventario subido: '+c.pct.toLocaleString('es-ES')+' % real sobre '+c.maestro+' ubicaciones del maestro.','ok');
+  show('inventario');
+}
+function filasDeTexto(t){return t.replace(/\r/g,'').split('\n').map(l=>{const c=l.split('\t');const s=l.trim();return (c.length===1&&s.charAt(0)==='|')?s.replace(/^\|/,'').replace(/\|$/,'').split('|'):c;});}
 async function aTexto(f){
   const buf=await f.arrayBuffer();
   if(/\.xlsx?$/i.test(f.name)&&typeof XLSX!=='undefined'){const u=new Uint8Array(buf);
@@ -198,7 +275,13 @@ async function subir(files){
   if(!API) return msg('Falta configurar la dirección de la hoja.','err');
   for(const f of files){
     try{
+      if(/\.xlsx?$/i.test(f.name)&&typeof XLSX!=='undefined'){
+        const wb=XLSX.read(new Uint8Array(await f.arrayBuffer()),{type:'array',cellDates:true});
+        const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:''});
+        if(rows.some(r=>r.some(c=>/Status de integridad/i.test(String(c))))){await subirInv(f,rows);continue;}
+      }
       const txt=await aTexto(f);
+      if(/Status de integridad/i.test(txt)){await subirInv(f,filasDeTexto(txt));continue;}
       const tipo=/Causante/i.test(txt)?'PSE_ALEX':/(^|\t)\s*Documento\s*(\t|$)|Orden.*entrega/im.test(txt)?'PED_ALEX':null;
       if(!tipo){msg('No reconozco «'+f.name+'». Exporta PSE_ALEX (VL10G) o PED_ALEX (monitor) en «Texto con tabuladores».','err');continue;}
       msg('Subiendo '+tipo+' («'+f.name+'»)…','info');
@@ -218,7 +301,7 @@ $('#file').addEventListener('change',e=>{subir([...e.target.files]);e.target.val
 function show(v){document.querySelectorAll('[data-view]').forEach(s=>s.classList.toggle('hidden',s.dataset.view!==v));
   document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.v===v));}
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{show(t.dataset.v);try{history.replaceState(null,'',location.search+'#'+t.dataset.v)}catch(e){}}));
-const h0=(location.hash||'').slice(1); if(['resumen','sinentrega','almacen','historico','guia'].includes(h0)) show(h0);
+const h0=(location.hash||'').slice(1); if(['resumen','sinentrega','almacen','historico','inventario','guia'].includes(h0)) show(h0);
 
 // --- carga de datos (JSONP: funciona desde cualquier web sin problemas de CORS) ---
 let n=0;
@@ -258,7 +341,7 @@ function render(){
   const d=state.data;
   if(d){$('#stamp').innerHTML='Actualizado <b>'+esc(d.generado)+'</b>';
     $('#fuente').innerHTML='Últimos datos de SAP: <b>'+(d.pse.pegado||'—')+'</b> (PSE)'+(d.ped&&d.ped.pegado?' · <b>'+d.ped.pegado+'</b> (PED)':'');}
-  renderKPIs();renderEvo();renderMov();renderBars();renderPSE();renderPED();renderHist();
+  renderKPIs();renderEvo();renderMov();renderBars();renderPSE();renderPED();renderHist();renderInv();
 }
 function kpi(v,l,d,k){return '<div class="kpi '+(k||'')+'"><div class="v">'+v+'</div><div class="l">'+l+'</div>'+(d?'<div class="d">'+d+'</div>':'')+'</div>';}
 function renderKPIs(){
@@ -336,6 +419,50 @@ function renderHist(){
   $('#tHist').innerHTML='<thead><tr><th>Fecha</th><th>Hora</th><th>Datos subidos</th><th style="text-align:right">Pendientes</th><th style="text-align:right">Atrasados</th><th style="text-align:right">Salida hoy</th><th style="text-align:right">Próx. 7 días</th><th style="text-align:right">Traslados</th></tr></thead><tbody>'+
     (L.length?L.map(c=>'<tr><td>'+fmtD(c.fecha)+'/'+c.fecha.slice(0,4)+'</td><td>'+esc(c.franja)+'</td><td>'+esc(c.pegado)+'</td><td style="text-align:right">'+c.total+'</td><td style="text-align:right">'+c.atrasados+'</td><td style="text-align:right">'+c.hoy+'</td><td style="text-align:right">'+c.prox7+'</td><td style="text-align:right">'+c.traslados+'</td></tr>').join(''):'<tr><td colspan="8" class="empty">Todavía no hay guardados</td></tr>')+'</tbody>';
 }
+
+function invData(){return state.data&&state.data.inv?state.data.inv:null;}
+let invCache=null;
+async function renderInv(){
+  const d=invData();
+  if(!d||!d.filas||d.filas.length<2){$('#invKpis').innerHTML='<div class="card empty" style="grid-column:1/-1">Todavía no hay inventario. Arrastra arriba el Excel de INV_ALEX.</div>';
+    ['#invZonas','#invEvo'].forEach(s=>$(s).innerHTML='');['#tPend','#tSobra','#tFalta'].forEach(s=>$(s).innerHTML='');return;}
+  const m=await cargarMaestro();
+  if(!m){$('#invKpis').innerHTML='<div class="card empty" style="grid-column:1/-1">No se ha podido leer el maestro de ubicaciones del dashboard de stock.</div>';return;}
+  const c=cruzarInv(d.filas,m);invCache=c;
+  $('#invKpis').innerHTML=kpi(c.pct.toLocaleString('es-ES')+' %','Inventario real',c.hechas+' de '+c.maestro+' ubicaciones del maestro',c.pct>=95?'ok':c.pct>=80?'warn':'bad')+
+    kpi(c.pendientes,'Pendientes',c.sinDoc+' sin documento · '+c.enCurso+' en curso',c.pendientes?'warn':'ok')+
+    kpi(c.soloSap,'Sobran en SAP','no están en el maestro',c.soloSap?'bad':'ok')+
+    kpi(c.soloMaestro,'Faltan en SAP','del maestro sin ese nombre en SAP',c.soloMaestro?'bad':'ok');
+  const Z=Object.entries(c.zonas).sort((a,b)=>b[1].total-a[1].total);
+  $('#invZonas').innerHTML='<div class="bars">'+Z.map(([z,v])=>{const p=v.total?v.hechas/v.total*100:0;const col=p>=95?'var(--ok)':p>=80?'var(--warn)':'var(--bad)';
+    return '<div class="row" style="grid-template-columns:140px 1fr 110px"><span>'+esc(z)+'</span><div class="track"><div class="fill" style="width:'+p+'%;background:'+col+'"></div></div><span class="n">'+p.toFixed(1).replace('.',',')+' % <span class="note">('+v.hechas+'/'+v.total+')</span></span></div>';}).join('')+'</div>';
+  $('#invZonasSub').textContent='Subido '+(d.subido||'—')+' · '+(d.filas.length-1)+' ubicaciones en el archivo de SAP';
+  const zs=$('#invZona');const cur=zs.value;zs.innerHTML='<option value="">Todas las zonas</option>'+Z.map(([z])=>'<option'+(z===cur?' selected':'')+'>'+esc(z)+'</option>').join('');
+  renderPend();
+  $('#tSobra').innerHTML='<thead><tr><th>Ubicación SAP</th><th>Tipo alm.</th><th>Estado</th></tr></thead><tbody>'+(c.sobra.length?c.sobra.map(r=>'<tr><td><b>'+esc(r.ubi)+'</b></td><td>'+esc(r.tipo)+'</td><td>'+esc(r.estado)+'</td></tr>').join(''):'<tr><td colspan="3" class="empty">Ninguna</td></tr>')+'</tbody>';
+  $('#tFalta').innerHTML='<thead><tr><th>Ubicación maestro</th><th>Zona</th><th>En SAP aparece como</th></tr></thead><tbody>'+(c.falta.length?c.falta.map(r=>'<tr><td><b>'+esc(r.ubi)+'</b></td><td>'+esc(r.zona)+'</td><td>'+esc(r.alias||'—')+'</td></tr>').join(''):'<tr><td colspan="3" class="empty">Ninguna</td></tr>')+'</tbody>';
+  $('#invFuente').textContent='Maestro: '+m.length+' ubicaciones ('+state.maestroFuente+'). Inventariada = «Status de integridad» marcado en SAP.';
+  const L=(d.historico||[]).slice(-30);
+  if(L.length<2){$('#invEvo').innerHTML='<div class="empty">Aparecerá en cuanto haya dos subidas de INV_ALEX.</div>';}
+  else{const W=620,Hh=200,pl=34,pr=12,pt=12,pb=34;const x=i=>pl+i*(W-pl-pr)/(L.length-1),y=v=>pt+(Hh-pt-pb)*(1-v/100);
+    let g='';for(let t=0;t<=100;t+=20)g+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(t)+'" y2="'+y(t)+'" stroke="var(--line)"/><text x="'+(pl-6)+'" y="'+(y(t)+4)+'" text-anchor="end">'+t+'%</text>';
+    const ln=L.map((c,i)=>(i?'L':'M')+x(i).toFixed(1)+','+y(c.pct).toFixed(1)).join('');const step=Math.ceil(L.length/8);let xl='';
+    L.forEach((c,i)=>{if(i%step===0||i===L.length-1)xl+='<text x="'+x(i)+'" y="'+(Hh-14)+'" text-anchor="middle">'+fmtD(c.fecha)+'</text><text x="'+x(i)+'" y="'+(Hh-2)+'" text-anchor="middle">'+c.hora+'</text>';});
+    $('#invEvo').innerHTML='<svg viewBox="0 0 '+W+' '+Hh+'" width="100%" role="img" aria-label="Evolución del porcentaje real de inventario">'+g+'<path d="'+ln+'" fill="none" stroke="var(--accent)" stroke-width="2.5"/><circle cx="'+x(L.length-1)+'" cy="'+y(L[L.length-1].pct)+'" r="4.5" fill="var(--accent)"/>'+xl+'</svg>';}
+}
+function pendFiltradas(){if(!invCache)return[];const q=$('#invQ').value.trim().toUpperCase(),z=$('#invZona').value,e=$('#invEst').value;
+  return invCache.pend.filter(r=>(!q||r.ubi.includes(q))&&(!z||r.zona===z)&&(!e||r.estado===e)).sort((a,b)=>a.zona<b.zona?-1:a.zona>b.zona?1:a.ubi<b.ubi?-1:1);}
+const pillI=e=>'<span class="pill '+({'Sin documento':'p-bad','No existe en SAP':'p-bad','Documento abierto':'p-warn','Contada sin contabilizar':'p-info'}[e]||'p-ok')+'">'+e+'</span>';
+function renderPend(){const R=pendFiltradas();
+  $('#tPend').innerHTML='<thead><tr><th>Ubicación</th><th>Zona</th><th>Estado en SAP</th><th>Último recuento</th><th>Doc. inventario</th></tr></thead><tbody>'+
+  (R.length?R.map(r=>'<tr><td><b>'+esc(r.ubi)+'</b></td><td>'+esc(r.zona)+'</td><td>'+pillI(r.estado)+'</td><td>'+esc(r.fecha||'—')+'</td><td>'+esc(r.doc||'—')+'</td></tr>').join(''):'<tr><td colspan="5" class="empty">Ninguna ubicación pendiente con ese filtro</td></tr>')+'</tbody>';}
+['#invQ','#invZona','#invEst'].forEach(s=>$(s).addEventListener(s==='#invQ'?'input':'change',renderPend));
+$('#dlInv').addEventListener('click',()=>{if(!invCache)return msg('Todavía no hay inventario.','err');const c=invCache;
+  saveXlsx('Inventario_AZQ_'+stampName()+'.xlsx',[
+    ['Pendientes',[['Ubicación','Zona','Estado en SAP','Último recuento','Doc. inventario']].concat(pendFiltradas().map(r=>[r.ubi,r.zona,r.estado,r.fecha,r.doc]))],
+    ['Por zona',[['Zona','Ubicaciones maestro','Inventariadas','% real']].concat(Object.entries(c.zonas).map(([z,v])=>[z,v.total,v.hechas,Math.round(v.hechas/v.total*1000)/10]))],
+    ['Sobran en SAP',[['Ubicación SAP','Tipo almacén','Estado']].concat(c.sobra.map(r=>[r.ubi,r.tipo,r.estado]))],
+    ['Faltan en SAP',[['Ubicación maestro','Zona','En SAP aparece como']].concat(c.falta.map(r=>[r.ubi,r.zona,r.alias]))]]);});
 function saveXlsx(name,sheets){
   if(typeof XLSX==='undefined'){msg('No se ha podido cargar el generador de Excel. Revisa la conexión.','err');return;}
   const wb=XLSX.utils.book_new();sheets.forEach(([n,aoa])=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(aoa),n));
