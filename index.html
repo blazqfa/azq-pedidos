@@ -236,11 +236,12 @@ const MAESTRO_WEB='/azq-dashboard/';
 state.maestro=null; state.maestroFuente='';
 async function cargarMaestro(){
   if(state.maestro) return state.maestro;
-  try{const r=await fetch(MAESTRO_API,{cache:'no-store'});const d=await r.json();
-    if(d&&d.ok&&Array.isArray(d.maestro)&&d.maestro.length){state.maestro=d.maestro.map(m=>({ubi:String(m.ubi).trim().toUpperCase(),zona:m.zona||''}));state.maestroFuente='maestro guardado en el dashboard de stock';return state.maestro;}}catch(e){}
-  try{const h=await (await fetch(MAESTRO_WEB+'?t='+Date.now(),{cache:'no-store'})).text();
+  const conTiempo=(pr,ms)=>Promise.race([pr,new Promise((_,r)=>setTimeout(()=>r(new Error('tiempo')),ms))]);
+  try{const h=await conTiempo(fetch(MAESTRO_WEB+'?t='+Date.now(),{cache:'no-store'}).then(r=>r.text()),15000);
     const i=h.indexOf('const M_INIT = ');if(i>=0){const a=i+15,b=h.indexOf('];',a)+1;const m=JSON.parse(h.slice(a,b));
-      state.maestro=m.map(x=>({ubi:String(x.ubi).trim().toUpperCase(),zona:x.zona||''}));state.maestroFuente='maestro de ubicaciones del dashboard de stock';return state.maestro;}}catch(e){}
+      if(m.length){state.maestro=m.map(x=>({ubi:String(x.ubi).trim().toUpperCase(),zona:x.zona||''}));state.maestroFuente='maestro de ubicaciones del dashboard de stock';return state.maestro;}}}catch(e){}
+  try{const d=await conTiempo(fetch(MAESTRO_API,{cache:'no-store'}).then(r=>r.json()),10000);
+    if(d&&d.ok&&Array.isArray(d.maestro)&&d.maestro.length){state.maestro=d.maestro.map(m=>({ubi:String(m.ubi).trim().toUpperCase(),zona:m.zona||''}));state.maestroFuente='maestro guardado en el dashboard de stock';return state.maestro;}}catch(e){}
   return null;
 }
 const COLS_INV=['Ubicación','Tipo almacén','Número de doc.inv.','FeRecuentInvent','Status de inventario','Status de integridad'];
@@ -269,6 +270,7 @@ function cruzarInv(filas,maestro){
   return {maestro:n,hechas,pct:n?Math.round(hechas/n*1000)/10:0,pendientes:n-hechas,sinDoc,enCurso,soloSap:sobra.length,soloMaestro:falta.length,zonas,pend,sobra,falta};
 }
 async function subirInv(f,rows){
+  msg('Leyendo inventario «'+f.name+'»…','info');
   const filas=filasInv(rows);if(!filas){msg('No encuentro la columna «Status de integridad» en «'+f.name+'».','err');return;}
   msg('Cargando maestro de ubicaciones…','info');
   const m=await cargarMaestro();if(!m){msg('No he podido leer el maestro de ubicaciones del dashboard de stock.','err');return;}
