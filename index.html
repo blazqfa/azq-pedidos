@@ -97,7 +97,8 @@ code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;
 
 <main class="wrap">
   <section class="load" id="drop" aria-label="Subir exportación de SAP">
-    <p><b>Arrastra aquí el .txt de SAP</b> (PSE_ALEX de VL10G, PED_ALEX del monitor o el Excel de INV_ALEX) o pulsa «Subir archivo». Se guarda solo para todo el equipo.<br><span id="fuente">Conectando con la hoja de datos…</span></p>
+    <p><b>Arrastra aquí las exportaciones de SAP</b> (VL10C, VL10B, ME2L, YME80FNUB, PED_ALEX, INV_ALEX o PSE_ALEX) o pulsa «Subir archivo». Se guarda solo para todo el equipo.<br><span id="fuente">Conectando con la hoja de datos…</span></p>
+    <label class="note">Tipo <select id="tipoArchivo" aria-label="Tipo de archivo"><option value="">Automático</option><option value="VL10C">VL10C · cliente final</option><option value="VL10B">VL10B · intercompany</option><option value="ME2L">ME2L · intercompany</option><option value="UB">YME80FNUB · traslados</option></select></label>
     <input type="file" id="file" accept=".txt,.tsv,.csv,.xls,.xlsx" multiple class="hidden">
     <button class="btn" id="pick" type="button">Subir archivo</button>
     <button class="btn ghost" id="refrescar" type="button">Actualizar</button>
@@ -106,7 +107,8 @@ code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;
 
   <nav class="tabs" role="tablist">
     <button class="tab" role="tab" data-v="resumen" aria-selected="true">Resumen</button>
-    <button class="tab" role="tab" data-v="sinentrega" aria-selected="false">Sin entrega (administración)</button>
+    <button class="tab" role="tab" data-v="colas" aria-selected="false">Administración (colas)</button>
+    <button class="tab" role="tab" data-v="sinentrega" aria-selected="false">VL10G (referencia)</button>
     <button class="tab" role="tab" data-v="almacen" aria-selected="false">Por preparar (almacén)</button>
     <button class="tab" role="tab" data-v="historico" aria-selected="false">Histórico</button>
     <button class="tab" role="tab" data-v="inventario" aria-selected="false">Inventario</button>
@@ -114,7 +116,14 @@ code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;
   </nav>
 
   <section data-view="resumen">
-    <h2 class="block" style="border-top:0">Administración <small>Pedidos de Customer Service pendientes de crear la entrega (VL10G · PSE_ALEX)</small></h2>
+    <h2 class="block" style="border-top:0">Administración <small>Pedidos pendientes de gestionar por Expediciones · método VL10C · VL10B · ME2L · YME80FNUB</small></h2>
+    <div class="kpis" id="admKpis"></div>
+    <div class="grid2">
+      <div class="card"><h2>Intercompany: VL10B frente a ME2L</h2><p class="sub">Sin entrega = en las dos · Con entrega = solo ME2L · Revisar = solo VL10B</p><div id="admCruce" class="bars"></div></div>
+      <div class="card"><h2>Por centro destino</h2><p class="sub">Pedidos pendientes de las 3 colas (sin los de revisar)</p><div id="admCentros" class="bars"></div></div>
+    </div>
+    <p class="note" id="admFuentes"></p>
+    <h2 class="block">Referencia VL10G <small>Variante PSE_ALEX: pedidos de Customer Service sin entrega (método anterior)</small></h2>
     <div class="kpis" id="kpis"></div>
     <div class="grid2">
       <div class="card"><h2>Evolución de pendientes</h2><p class="sub">Un punto por cada vez que se suben datos de PSE_ALEX</p><div id="evo"></div></div>
@@ -129,6 +138,22 @@ code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;
     <div class="grid2">
       <div class="card"><h2>Evolución de órdenes por preparar</h2><p class="sub">Un punto por cada subida de PED_ALEX</p><div id="almEvo"></div></div>
       <div class="card"><h2>Por estado y tipo</h2><p class="sub" id="almEstSub">Órdenes activas (sin las de más de 30 días de retraso)</p><div id="almEst" class="bars"></div></div>
+    </div>
+  </section>
+
+  <section data-view="colas" class="hidden">
+    <div class="card">
+      <h2>Colas de administración</h2>
+      <p class="sub" id="colaSub"></p>
+      <div class="toolbar">
+        <select id="cCola" aria-label="Filtrar por cola"><option value="">Todas las colas</option><option>Cliente final</option><option>Intercompany</option><option>Traslados</option></select>
+        <select id="cEst" aria-label="Filtrar por estado"><option value="">Todos los estados</option></select>
+        <input id="cq" type="search" placeholder="Buscar pedido, material o centro" aria-label="Buscar en colas">
+        <label class="note"><input type="checkbox" id="cLin"> Ver líneas</label>
+        <button class="btn ghost" id="dlCola" type="button">Descargar Excel</button>
+      </div>
+      <div class="tablebox"><table id="tCola"></table></div>
+      <p class="note">Cliente final = VL10C (puestos 1180 y 2150, prioridad 1). Intercompany = VL10B (puesto 2100) cruzado con ME2L (proveedor 2150, NBCR, Glassware y Beauty, solo líneas con valor por entregar). Traslados = YME80FNUB (UB 1180 → 1180 sin entrega, salida ni entrada).</p>
     </div>
   </section>
 
@@ -198,6 +223,13 @@ code{font-size:13px;background:var(--info-bg);padding:1px 5px;border-radius:4px;
     <div class="card">
       <h2>Cómo actualizar</h2>
       <p class="sub">Unos 2 minutos, cuando haga falta (orientativo: a primera hora, a mediodía y por la tarde).</p>
+      <h2 style="margin-top:4px">Administración (método de Expediciones)</h2>
+      <ol class="steps">
+        <li><b>Ejecuta las 4 variantes:</b> en cada transacción pulsa <b>Obtener variante</b> (Mayús+F5), elige la variante y pulsa <b>F8</b>: <code>VL10C → EXP_VL10C</code> · <code>VL10B → EXP_VL10B</code> · <code>ME2L → EXP_ME2L</code> · <code>YME80FNUB → EXP_UB</code>. En VL10C y VL10B no pulses nunca «Diálogo» ni «Fondo»: crearían entregas.</li>
+        <li><b>Exporta cada lista a Excel</b> (icono de hoja de cálculo → XLSX → Continuar) y guárdala con el nombre de la transacción: <code>VL10C.xlsx</code>, <code>VL10B.xlsx</code>, <code>ME2L.xlsx</code>, <code>UB.xlsx</code>.</li>
+        <li><b>Arrástralas aquí.</b> La web reconoce ME2L y YME80FNUB por sus columnas; VL10C y VL10B por el nombre del archivo. Si el nombre no lo dice, elige el tipo en el desplegable «Tipo» antes de subir.</li>
+      </ol>
+      <h2 style="margin-top:14px">Almacén, inventario y referencia VL10G</h2>
       <ol class="steps">
         <li><b>Abre VL10G sin ventanas emergentes</b> con este enlace:<br><code>https://s4prd.sap.bormioliluigi.com/sap/bc/gui/sap/its/webgui?~transaction=VL10G&amp;sap-client=100&amp;sap-language=ES</code></li>
         <li><b>Carga la variante:</b> pulsa <b>Obtener variante</b>, elige <b>PSE_ALEX</b> y pulsa <b>Ejecutar</b>. No pulses nunca "Fondo": crearía las entregas.</li>
@@ -320,6 +352,71 @@ async function subirPed(f,rows){
   await fetch(API,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({tipo:'PED',filas,resumen})});
   msg('PED_ALEX subido: '+a.activas+' órdenes por preparar ('+a.antiguas+' antiguas aparte).','ok');
 }
+// ===== ADMINISTRACIÓN: método de Expediciones (VL10C · VL10B · ME2L · YME80FNUB) =====
+const COLS_ADM=['Pedido','Pos','Fecha','Material','Texto','Cantidad','UM','Centro','Grupo','Valor','Estado','Bloqueo'];
+const NOM_FUENTE={VL10C:'VL10C (cliente final)',VL10B:'VL10B (intercompany sin entrega)',ME2L:'ME2L (intercompany por entregar)',UB:'YME80FNUB (traslados UB)'};
+const nrm=s=>String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+const colDe=(H,res)=>{for(const re of res){const i=H.findIndex(h=>re.test(h));if(i>=0)return i;}return -1;};
+function num(v){if(typeof v==='number')return v;const s=String(v==null?'':v).trim();if(!s)return 0;
+  const n=parseFloat(s.indexOf(',')>=0?s.replace(/\./g,'').replace(',','.'):(/^-?\d{1,3}(\.\d{3})+$/.test(s)?s.replace(/\./g,''):s));return isNaN(n)?0:n;}
+const txt=v=>typeof v==='number'?String(Math.round(v)):String(v==null?'':v).trim().replace(/\.0+$/,'');
+const fechaIso=v=>isoDe(fmtFecha(v));
+function detectarAdm(rows,nombre){
+  const top=rows.slice(0,20).map(r=>r.map(nrm));const has=re=>top.some(r=>r.some(c=>re.test(c)));
+  if(has(/por entregar/))return 'ME2L';
+  if(has(/^cesu$|^qta ord|^qta con/)||/yme80|(^|[^a-z])ub([^a-z]|$)/i.test(nombre))return 'UB';
+  if(/vl10c/i.test(nombre))return 'VL10C';
+  if(/vl10b/i.test(nombre))return 'VL10B';
+  return null;
+}
+function filasAdm(fuente,rows){
+  const out=[COLS_ADM];
+  const cab=test=>rows.findIndex(r=>test(r.map(nrm)));
+  if(fuente==='ME2L'){
+    const hi=cab(r=>r.some(c=>/por entregar/.test(c)));if(hi<0)return null;
+    const H=rows[hi].map(nrm),c=a=>colDe(H,a);
+    const i={p:c([/^documento compras$/,/^doc\.? ?compras/,/documento de compras/]),pos:c([/^posicion$/,/^pos\.?$/]),f:c([/^fecha documento$/,/^fecha doc/]),
+      m:c([/^material$/]),t:c([/texto breve/]),q:c([/cantidad de pedido/,/^ctd\.? ?pedido/]),u:c([/unidad medida pedido/,/^ump$/]),ce:c([/^centro$/,/^ce\.?$/]),
+      g:c([/grupo de articulos/,/^grupo art/]),v:c([/por entregar/]),b:c([/indicador de borrado/,/^b$/])};
+    for(const r of rows.slice(hi+1)){const p=txt(r[i.p]);if(!/^\d{6,}$/.test(p))continue;const v=num(r[i.v]);if(!v)continue;
+      if(i.b>=0&&String(r[i.b]==null?'':r[i.b]).trim())continue;
+      out.push([p,txt(r[i.pos]),fechaIso(r[i.f]),txt(r[i.m]),txt(r[i.t]),num(r[i.q]),txt(r[i.u]),txt(r[i.ce]),txt(r[i.g]),Math.round(v*100)/100,'Por entregar','']);}
+    return out;
+  }
+  if(fuente==='UB'){
+    const hi=cab(r=>r.some(c=>/^doc\.? ?compras|documento (de )?compras|^pedido$/.test(c)));if(hi<0)return null;
+    const H=rows[hi].map(nrm),c=a=>colDe(H,a);
+    const i={p:c([/^doc\.? ?compras/,/documento (de )?compras/,/^pedido$/]),pos:c([/^pos/]),f:c([/fecha (de )?entrega/,/fecha doc/,/fecha/]),m:c([/^material$/]),t:c([/texto/]),
+      q:c([/^qta ord/,/cantidad (de )?pedido/,/^cantidad/]),u:c([/^ump$/,/unidad/]),ce:c([/^centro$/]),cs:c([/^cesu$/,/centro suministrador/]),
+      con:c([/^qta con/,/consegn/]),usc:c([/^qta usc/,/uscit/,/salida/]),em:c([/^qta em/,/entrada/])};
+    for(const r of rows.slice(hi+1)){const p=txt(r[i.p]);if(!/^\d{6,}$/.test(p))continue;
+      const con=i.con>=0?num(r[i.con]):0,usc=i.usc>=0?num(r[i.usc]):0;
+      out.push([p,txt(r[i.pos]),fechaIso(r[i.f]),txt(r[i.m]),txt(r[i.t]),num(r[i.q]),txt(r[i.u]),txt(r[i.ce]),'UB '+txt(r[i.cs]),'',usc?'Salida contabilizada':con?'Con entrega':'Sin entrega','']);}
+    return out;
+  }
+  // VL10C / VL10B (programa RVV50R10C)
+  const hi=cab(r=>r.some(c=>/causante|^pedido$/.test(c)));if(hi<0)return null;
+  const H=rows[hi].map(nrm),c=a=>colDe(H,a);
+  const i={p:c([/^causante$/,/documento causante/,/^pedido$/,/causante/]),pos:c([/^pos\.? ?caus/,/^posicion/,/^pos/]),f:c([/^sal\.? ?mc/,/salida de mercancias/,/^fecha/]),
+    m:c([/^material$/]),t:c([/denominacion/,/^texto/]),q:c([/^cant\.? ?pend/,/cantidad pendiente/,/^cant/]),u:c([/^umb$/,/^unidad medida/]),
+    ce:c([/^dest\.? ?mc/,/destinatario/,/^dest/,/^solicit/]),s:c([/semaforo/]),b:c([/bloq/])};
+  let ult='';
+  for(const r of rows.slice(hi+1)){let p=txt(r[i.p]);const pos=txt(r[i.pos]);
+    if(!p&&pos&&ult)p=ult;if(!/^\d{4,}$/.test(p))continue;ult=p;
+    const s=i.s>=0?txt(r[i.s]).replace(/^sem[aá]f\.?\s*/i,''):'';
+    out.push([p,pos,fechaIso(r[i.f]),txt(r[i.m]),txt(r[i.t]),num(r[i.q]),txt(r[i.u]),txt(r[i.ce]),fuente==='VL10B'?'Traslado':'Venta','',s||'Sin entrega',i.b>=0?txt(r[i.b]):'']);}
+  return out;
+}
+async function subirAdm(f,rows,fuente){
+  const filas=filasAdm(fuente,rows);
+  if(!filas){msg('No encuentro las columnas de '+NOM_FUENTE[fuente]+' en «'+f.name+'».','err');return;}
+  if(filas.length<2){msg('«'+f.name+'» no tiene pedidos pendientes de '+NOM_FUENTE[fuente]+'. Se guarda vacío.','info');}
+  const ped=new Set(filas.slice(1).map(r=>r[0])).size;
+  msg('Subiendo '+NOM_FUENTE[fuente]+': '+ped+' pedidos, '+(filas.length-1)+' líneas…','info');
+  await fetch(API,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({tipo:'ADM',fuente,filas})});
+  msg(NOM_FUENTE[fuente]+' subido: '+ped+' pedidos, '+(filas.length-1)+' líneas.','ok');
+}
+window.AZQ_ADM={filasAdm,detectarAdm};
 async function aTexto(f){
   const buf=await f.arrayBuffer();
   if(/\.xlsx?$/i.test(f.name)&&typeof XLSX!=='undefined'){const u=new Uint8Array(buf);
@@ -328,17 +425,22 @@ async function aTexto(f){
 }
 async function subir(files){
   if(!API) return msg('Falta configurar la dirección de la hoja.','err');
+  const forz=$('#tipoArchivo').value;
   for(const f of files){
     try{
       if(/\.xlsx?$/i.test(f.name)&&typeof XLSX!=='undefined'){
         const wb=XLSX.read(new Uint8Array(await f.arrayBuffer()),{type:'array',cellDates:true});
         const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:''});
+        if(forz){await subirAdm(f,rows,forz);continue;}
         if(rows.some(r=>r.some(c=>/Status de integridad/i.test(String(c))))){await subirInv(f,rows);continue;}
         if(rows.some(r=>r.some(c=>/Status de picking/i.test(String(c))))){await subirPed(f,rows);continue;}
+        const fa=detectarAdm(rows,f.name);if(fa){await subirAdm(f,rows,fa);continue;}
       }
-      const txt=await aTexto(f);
-      if(/Status de integridad/i.test(txt)){await subirInv(f,filasDeTexto(txt));continue;}
-      if(/Status de picking/i.test(txt)){await subirPed(f,filasDeTexto(txt));continue;}
+      const txt=await aTexto(f);const tr=filasDeTexto(txt);
+      if(forz){await subirAdm(f,tr,forz);continue;}
+      if(/Status de integridad/i.test(txt)){await subirInv(f,tr);continue;}
+      if(/Status de picking/i.test(txt)){await subirPed(f,tr);continue;}
+      {const fa=detectarAdm(tr,f.name);if(fa){await subirAdm(f,tr,fa);continue;}}
       const tipo=/Causante/i.test(txt)?'PSE_ALEX':/(^|\t)\s*Documento\s*(\t|$)|Orden.*entrega/im.test(txt)?'PED_ALEX':null;
       if(!tipo){msg('No reconozco «'+f.name+'». Exporta PSE_ALEX (VL10G) o PED_ALEX (monitor) en «Texto con tabuladores».','err');continue;}
       msg('Subiendo '+tipo+' («'+f.name+'»)…','info');
@@ -358,7 +460,7 @@ $('#file').addEventListener('change',e=>{subir([...e.target.files]);e.target.val
 function show(v){document.querySelectorAll('[data-view]').forEach(s=>s.classList.toggle('hidden',s.dataset.view!==v));
   document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.v===v));}
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{show(t.dataset.v);try{history.replaceState(null,'',location.search+'#'+t.dataset.v)}catch(e){}}));
-const h0=(location.hash||'').slice(1); if(['resumen','sinentrega','almacen','historico','inventario','guia'].includes(h0)) show(h0);
+const h0=(location.hash||'').slice(1); if(['resumen','colas','sinentrega','almacen','historico','inventario','guia'].includes(h0)) show(h0);
 
 // --- carga de datos (JSONP: funciona desde cualquier web sin problemas de CORS) ---
 let n=0;
@@ -400,7 +502,7 @@ function render(){
   if(d){$('#stamp').innerHTML='Actualizado <b>'+esc(d.generado)+'</b>';
     $('#fuente').innerHTML='Últimos datos de SAP: <b>'+(d.pse.pegado||'—')+'</b> (PSE)'+(d.ped&&d.ped.pegado?' · <b>'+d.ped.pegado+'</b> (PED)':'')+(d.inv&&d.inv.subido?' · <b>'+d.inv.subido+'</b> (INV)':'');}
   almCache=D();
-  renderKPIs();renderEvo();renderMov();renderBars();renderPSE();renderAlm();renderPED();renderHist();renderInv();
+  renderAdm();renderKPIs();renderEvo();renderMov();renderBars();renderPSE();renderAlm();renderPED();renderHist();renderInv();
 }
 function kpi(v,l,d,k){return '<div class="kpi '+(k||'')+'"><div class="v">'+v+'</div><div class="l">'+l+'</div>'+(d?'<div class="d">'+d+'</div>':'')+'</div>';}
 function renderKPIs(){
@@ -553,6 +655,89 @@ function saveXlsx(name,sheets){
   const wb=XLSX.utils.book_new();sheets.forEach(([n,aoa])=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(aoa),n));
   XLSX.writeFile(wb,name);
 }
+// --- análisis de las 3 colas ---
+const COLAS=['Cliente final','Intercompany','Traslados'];
+function admLineas(f){const a=state.data&&state.data.adm&&state.data.adm.fuentes&&state.data.adm.fuentes[f];if(!a||!a.filas||a.filas.length<1)return null;
+  return a.filas.slice(1).filter(r=>r[0]).map(r=>{const o={};COLS_ADM.forEach((k,i)=>o[k]=r[i]==null?'':r[i]);o.fuente=f;return o;});}
+function admSubido(f){const a=state.data&&state.data.adm&&state.data.adm.fuentes&&state.data.adm.fuentes[f];return a?a.subido:'';}
+function agrupar(L){const m=new Map();L.forEach(l=>{const k=l.Pedido;if(!m.has(k))m.set(k,[]);m.get(k).push(l);});return m;}
+function analizarAdm(hoy){
+  const C=admLineas('VL10C'),B=admLineas('VL10B'),M=admLineas('ME2L'),U=admLineas('UB');
+  if(!C&&!B&&!M&&!U)return null;
+  const dias=f=>f?Math.round((Date.parse(hoy)-Date.parse(f))/864e5):null;
+  const minF=L=>L.map(l=>l.Fecha).filter(Boolean).sort()[0]||'';
+  const ped=(cola,p,L,extra)=>{const f=minF(L);const o={cola,pedido:p,lineas:L.filter(l=>l.Pos||l.Material).length,fecha:f,dias:dias(f),
+    centro:[...new Set(L.map(l=>l.Centro).filter(Boolean))].join(', '),grupo:[...new Set(L.map(l=>l.Grupo).filter(Boolean))].join(', '),
+    valor:L.reduce((s,l)=>s+(num(l.Valor)||0),0),bloqueo:L.map(l=>l.Bloqueo).filter(Boolean)[0]||'',origen:[...new Set(L.map(l=>l.fuente))].join(' + ')};return Object.assign(o,extra);};
+  const out={pedidos:[],lineas:[],fuentes:{VL10C:!!C,VL10B:!!B,ME2L:!!M,UB:!!U}};
+  if(C){agrupar(C).forEach((L,p)=>out.pedidos.push(ped('Cliente final',p,L,{estado:L.some(l=>/bc|yy|bloq/i.test(l.Bloqueo))?'Bloqueado: pedir al comercial':'Sin entrega'})));out.lineas.push(...C.map(l=>Object.assign({cola:'Cliente final'},l)));}
+  if(B||M){const gB=agrupar(B||[]),gM=agrupar(M||[]);const todos=new Set([...gB.keys(),...gM.keys()]);
+    todos.forEach(p=>{const enB=gB.has(p),enM=gM.has(p);let e;
+      if(enB&&enM)e='Sin entrega';else if(enM)e=B?'Con entrega (almacén)':'Por entregar';else e=M?'Revisar: ME2L sin pendiente':'Sin entrega';
+      const L=enM?gM.get(p):gB.get(p);const o=ped('Intercompany',p,L,{estado:e});
+      if(enB&&!enM)o.lineas=0;if(enB&&enM)o.origen='VL10B + ME2L';
+      if(!o.centro&&enB)o.centro=gB.get(p).map(l=>l.Centro).filter(Boolean)[0]||'';
+      out.pedidos.push(o);});
+    out.lineas.push(...(M||[]).map(l=>Object.assign({cola:'Intercompany'},l)));}
+  if(U){agrupar(U).forEach((L,p)=>out.pedidos.push(ped('Traslados',p,L,{estado:L.every(l=>l.Estado==='Sin entrega')?'Sin entrega':L.some(l=>l.Estado==='Sin entrega')?'Parcial':L[0].Estado})));out.lineas.push(...U.map(l=>Object.assign({cola:'Traslados'},l)));}
+  out.cola={};COLAS.forEach(c=>{const P=out.pedidos.filter(x=>x.cola===c);out.cola[c]={pedidos:P.length,lineas:out.lineas.filter(l=>l.cola===c).length,
+    gestionar:P.filter(x=>/^Sin entrega|^Por entregar|^Bloqueado/.test(x.estado)).length,antiguos:P.filter(x=>x.dias!=null&&x.dias>30).length,
+    estados:P.reduce((a,x)=>{a[x.estado]=(a[x.estado]||0)+1;return a},{})};});
+  return out;
+}
+let admCache=null;
+const pillA=e=>'<span class="pill '+(/^Revisar|^Bloqueado/.test(e)?'p-bad':/^Sin entrega|^Por entregar|^Parcial/.test(e)?'p-warn':/^Con entrega|Salida/.test(e)?'p-ok':'p-info')+'">'+esc(e)+'</span>';
+function renderAdm(){
+  const a=admCache=analizarAdm(TODAY()||hoyLocal());
+  if(!a){$('#admKpis').innerHTML='<div class="card empty" style="grid-column:1/-1">Todavía no hay datos. Sube las exportaciones de VL10C, VL10B, ME2L y YME80FNUB (ver «Cómo actualizar»).</div>';
+    bars($('#admCruce'),[]);bars($('#admCentros'),[]);$('#admFuentes').textContent='';renderColas();return;}
+  const G=a.pedidos.filter(x=>/^Sin entrega|^Por entregar|^Bloqueado|^Parcial/.test(x.estado));
+  const sub=(c,f)=>{const P=G.filter(x=>x.cola===c&&(!f||f(x)));return [P.length,P.reduce((s,x)=>s+x.lineas,0)];};
+  const lt=n=>n?n+' líneas':'sin líneas';
+  const [gc,lc]=sub('Cliente final'),[gi,li]=sub('Intercompany'),[gt,ltr]=sub('Traslados');
+  const ce=a.pedidos.filter(x=>/^Con entrega/.test(x.estado)).length,rev=a.pedidos.filter(x=>/^Revisar/.test(x.estado)).length;
+  const ant=G.filter(x=>x.dias!=null&&x.dias>30).length;
+  $('#admKpis').innerHTML=kpi(G.length,'Pendientes de gestionar',lt(G.reduce((s,x)=>s+x.lineas,0))+(ant?' · '+ant+' con más de 30 días':''),G.length?'warn':'ok')+
+    kpi(gc,'Cliente final (VL10C)',lt(lc))+kpi(gi,'Intercompany sin entrega',lt(li)+(a.fuentes.VL10B&&a.fuentes.ME2L?'':' · falta '+(a.fuentes.VL10B?'ME2L':'VL10B')+' para cruzar'))+
+    kpi(gt,'Traslados UB (YME80FNUB)',lt(ltr))+
+    kpi(ce,'Intercompany con entrega','solo en ME2L: ya en manos del almacén','ok')+
+    kpi(rev,'Revisar (solo en VL10B)','sin pendiente en ME2L: posibles pedidos viejos',rev?'bad':'ok');
+  const I=a.pedidos.filter(x=>x.cola==='Intercompany'),e={};I.forEach(x=>e[x.estado]=(e[x.estado]||0)+1);
+  const col={'Sin entrega':'var(--warn)','Con entrega (almacén)':'var(--ok)','Revisar: ME2L sin pendiente':'var(--bad)'};
+  bars($('#admCruce'),Object.entries(e).sort((x,y)=>y[1]-x[1]).map(([n,v])=>[n,v,col[n]||'']));
+  const cz={};a.pedidos.filter(x=>!/^Revisar/.test(x.estado)).forEach(x=>{const z=(x.centro||'—').split(', ')[0];cz[z]=(cz[z]||0)+1;});
+  bars($('#admCentros'),Object.entries(cz).sort((x,y)=>y[1]-x[1]).slice(0,8));
+  $('#admFuentes').innerHTML='Últimas subidas: '+['VL10C','VL10B','ME2L','UB'].map(f=>'<b>'+f+'</b> '+(admSubido(f)||'sin datos')).join(' · ');
+  const sel=$('#cEst'),cur=sel.value;const est=[...new Set(a.pedidos.map(x=>x.estado))].sort();
+  sel.innerHTML='<option value="">Todos los estados</option>'+est.map(x=>'<option'+(x===cur?' selected':'')+'>'+esc(x)+'</option>').join('');
+  renderColas();
+}
+function colaFiltro(){const c=$('#cCola').value,e=$('#cEst').value,q=$('#cq').value.trim().toLowerCase();return {c,e,q};}
+function colaPedidos(){if(!admCache)return[];const {c,e,q}=colaFiltro();
+  return admCache.pedidos.filter(x=>(!c||x.cola===c)&&(!e||x.estado===e)&&(!q||(x.pedido+' '+x.centro+' '+x.grupo).toLowerCase().includes(q)))
+    .sort((x,y)=>COLAS.indexOf(x.cola)-COLAS.indexOf(y.cola)||(x.fecha||'9').localeCompare(y.fecha||'9'));}
+function colaLineas(){if(!admCache)return[];const {c,e,q}=colaFiltro();const est=new Map(admCache.pedidos.map(x=>[x.cola+'|'+x.pedido,x.estado]));
+  return admCache.lineas.filter(l=>(!c||l.cola===c)&&(!e||est.get(l.cola+'|'+l.Pedido)===e)&&(!q||(l.Pedido+' '+l.Material+' '+l.Texto+' '+l.Centro).toLowerCase().includes(q)));}
+const fmtF=f=>f?fmtD(f)+'/'+f.slice(0,4):'—';
+const eur=v=>v?Math.round(v).toLocaleString('es-ES')+' €':'';
+function renderColas(){
+  const t=$('#tCola');
+  if(!admCache){t.innerHTML='<tr><td class="empty">Sin datos de administración</td></tr>';$('#colaSub').textContent='';return;}
+  if($('#cLin').checked){const R=colaLineas();
+    $('#colaSub').textContent=R.length+' líneas';
+    t.innerHTML='<thead><tr><th>Cola</th><th>Pedido</th><th>Pos.</th><th>Fecha</th><th>Material</th><th>Texto</th><th style="text-align:right">Cantidad</th><th>UM</th><th>Centro</th><th>Grupo</th><th style="text-align:right">Valor pdte.</th><th>Origen</th></tr></thead><tbody>'+
+      (R.length?R.slice(0,1500).map(l=>'<tr><td>'+l.cola+'</td><td><b>'+esc(l.Pedido)+'</b></td><td>'+esc(l.Pos)+'</td><td>'+fmtF(l.Fecha)+'</td><td>'+esc(l.Material)+'</td><td>'+esc(l.Texto)+'</td><td style="text-align:right">'+(num(l.Cantidad)?num(l.Cantidad).toLocaleString('es-ES'):'')+'</td><td>'+esc(l.UM)+'</td><td>'+esc(l.Centro)+'</td><td>'+esc(l.Grupo)+'</td><td style="text-align:right">'+eur(num(l.Valor))+'</td><td>'+l.fuente+'</td></tr>').join(''):'<tr><td colspan="12" class="empty">Ninguna línea con ese filtro</td></tr>')+'</tbody>';
+    return;}
+  const R=colaPedidos();
+  $('#colaSub').textContent=R.length+' pedidos · '+R.reduce((s,x)=>s+x.lineas,0)+' líneas';
+  t.innerHTML='<thead><tr><th>Cola</th><th>Estado</th><th>Pedido</th><th style="text-align:right">Líneas</th><th>Fecha</th><th style="text-align:right">Días de retraso</th><th>Centro / destino</th><th>Grupo</th><th style="text-align:right">Valor pdte.</th><th>Origen</th></tr></thead><tbody>'+
+    (R.length?R.map(x=>'<tr><td>'+x.cola+'</td><td>'+pillA(x.estado)+'</td><td><b>'+esc(x.pedido)+'</b></td><td style="text-align:right">'+(x.lineas||'—')+'</td><td>'+fmtF(x.fecha)+'</td><td style="text-align:right">'+(x.dias>0?x.dias:'')+'</td><td>'+esc(x.centro)+'</td><td>'+esc(x.grupo)+'</td><td style="text-align:right">'+eur(x.valor)+'</td><td>'+esc(x.origen)+'</td></tr>').join(''):'<tr><td colspan="10" class="empty">Ningún pedido con ese filtro</td></tr>')+'</tbody>';
+}
+['#cCola','#cEst','#cLin'].forEach(s=>$(s).addEventListener('change',renderColas));$('#cq').addEventListener('input',renderColas);
+$('#dlCola').addEventListener('click',()=>{if(!admCache)return msg('Todavía no hay datos de administración.','err');
+  saveXlsx('Administracion_colas_'+stampName()+'.xlsx',[
+    ['Pedidos',[['Cola','Estado','Pedido','Líneas','Fecha','Días de retraso','Centro / destino','Grupo','Valor pendiente','Origen']].concat(colaPedidos().map(x=>[x.cola,x.estado,x.pedido,x.lineas,x.fecha,x.dias>0?x.dias:'',x.centro,x.grupo,Math.round(x.valor*100)/100,x.origen]))],
+    ['Líneas',[['Cola','Pedido','Pos.','Fecha','Material','Texto','Cantidad','UM','Centro','Grupo','Valor pendiente','Origen']].concat(colaLineas().map(l=>[l.cola,l.Pedido,l.Pos,l.Fecha,l.Material,l.Texto,num(l.Cantidad),l.UM,l.Centro,l.Grupo,num(l.Valor),l.fuente]))]]);});
 const stampName=()=>(state.data?state.data.hoy:'')+'_'+new Date().toTimeString().slice(0,5).replace(':','');
 $('#dlPse').addEventListener('click',()=>{const p=P();if(!p)return msg('No hay datos de PSE_ALEX.','err');
   saveXlsx('PSE_ALEX_'+stampName()+'.xlsx',[['Pedidos sin entrega',[['Estado','Salida mcías.','Pedido','Tipo','Destinatario','Ruta','Prioridad','Peso (kg)']].concat(pseRows().map(r=>[r.estado,r.f,r.ped,r.tipo,r.dest,r.ruta,r.pr,r.kg]))]]);});
